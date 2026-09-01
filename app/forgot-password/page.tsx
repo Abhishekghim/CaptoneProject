@@ -1,47 +1,38 @@
 "use client";
 
-// Local-demo password reset — see the note in lib/auth/local-accounts.ts.
-// There's no email service connected (no backend yet), so this can't send a
-// reset link the way a real deployment would. It verifies the email belongs
-// to an existing account and lets you set a new password immediately. That
-// limitation is stated plainly below rather than pretending an email was sent.
-
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Activity, KeyRound } from "lucide-react";
-import { accountExists, resetPassword } from "@/lib/auth/local-accounts";
+import { Activity, Mail } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 export default function ForgotPasswordPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setSubmitting(true);
 
-    if (!accountExists(email)) {
-      setError("No account found with that email.");
-      return;
+    try {
+      const supabase = createClient();
+      // Always shows the same success state regardless of whether the email
+      // matches an account — Supabase does the same server-side, so this
+      // page can't be used to enumerate which addresses have accounts.
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (resetError) {
+        setError(resetError.message || "Something went wrong. Please try again.");
+        return;
+      }
+      setDone(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
-    if (newPassword.length < 4) {
-      setError("New password must be at least 4 characters.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError("Passwords don't match.");
-      return;
-    }
-
-    const result = resetPassword(email, newPassword);
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-    setDone(true);
   }
 
   return (
@@ -59,20 +50,14 @@ export default function ForgotPasswordPage() {
 
         <div className="card p-6 sm:p-7">
           <h1 className="text-lg font-bold text-navy">Reset your password</h1>
-          <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Local demo mode: there's no email service connected yet, so this can't send you a reset link. Confirm
-            your account email below and your new password takes effect immediately.
+          <p className="mt-1 text-sm text-slate-500">
+            Enter your account email and we&rsquo;ll send you a link to set a new password.
           </p>
 
           {done ? (
-            <div className="mt-5 space-y-4">
-              <p role="status" className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                Password updated. You can sign in with your new password now.
-              </p>
-              <button type="button" className="btn-primary w-full justify-center py-2.5" onClick={() => router.push("/login")}>
-                Go to sign in
-              </button>
-            </div>
+            <p role="status" className="mt-5 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+              If an account exists for that email, a reset link is on its way. Check your inbox (and spam folder).
+            </p>
           ) : (
             <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
               <div>
@@ -90,47 +75,15 @@ export default function ForgotPasswordPage() {
                 />
               </div>
 
-              <div>
-                <label htmlFor="new_password" className="mb-1 block text-xs font-semibold text-slate-600">
-                  New password
-                </label>
-                <input
-                  id="new_password"
-                  type="password"
-                  required
-                  minLength={4}
-                  autoComplete="new-password"
-                  className="input w-full"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="confirm_password" className="mb-1 block text-xs font-semibold text-slate-600">
-                  Confirm new password
-                </label>
-                <input
-                  id="confirm_password"
-                  type="password"
-                  required
-                  minLength={4}
-                  autoComplete="new-password"
-                  className="input w-full"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                />
-              </div>
-
               {error && (
                 <p role="alert" className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
                   {error}
                 </p>
               )}
 
-              <button type="submit" className="btn-primary w-full justify-center py-2.5">
-                <KeyRound size={16} aria-hidden />
-                Reset password
+              <button type="submit" disabled={submitting} className="btn-primary w-full justify-center py-2.5">
+                <Mail size={16} aria-hidden />
+                {submitting ? "Sending…" : "Send reset link"}
               </button>
             </form>
           )}

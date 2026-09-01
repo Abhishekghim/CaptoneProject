@@ -1,39 +1,66 @@
 "use client";
 
-// TEMPORARY: local-only auth (no Supabase, nothing persisted — see
-// lib/auth/local-accounts.ts). The real, working Supabase version of this
-// page is saved at lib/supabase/login-page.server-reference.tsx.
-
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Activity, LogIn } from "lucide-react";
-import { useSession } from "@/lib/auth/SessionContext";
-import { DEMO_CREDENTIALS, findAccount } from "@/lib/auth/local-accounts";
+import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
-  const { login } = useSession();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
 
-    // Role is never chosen here — it comes from whichever account matched.
-    const profile = findAccount(email, password);
-    if (!profile) {
-      setError("Invalid email or password. Please try again.");
-      setSubmitting(false);
-      return;
-    }
+    try {
+      const supabase = createClient();
 
-    login(profile);
-    router.push("/dashboard");
-    setSubmitting(false);
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) {
+        setError("Invalid email or password. Please try again.");
+        return;
+      }
+      if (!data.user) {
+        setError("Something went wrong signing you in. Please try again.");
+        return;
+      }
+
+      // Role is always looked up server-side from `profiles`, never chosen
+      // client-side — the user cannot select or influence it on this page.
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", data.user.id)
+        .single();
+
+      if (profileError || !profile) {
+        setError("Signed in, but no profile was found for this account. Contact an administrator.");
+        await supabase.auth.signOut();
+        return;
+      }
+
+      const redirectTo = searchParams.get("redirectTo") || "/dashboard";
+      router.push(redirectTo);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -107,20 +134,6 @@ export default function LoginPage() {
               Create an account
             </a>
           </p>
-        </div>
-
-        <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-white p-4 text-xs text-slate-600">
-          <p className="mb-2 font-semibold uppercase tracking-wide text-slate-500">
-            Local demo accounts — password is the same for all
-          </p>
-          <ul className="space-y-1 font-mono">
-            {DEMO_CREDENTIALS.map((c) => (
-              <li key={c.email}>
-                {c.email} <span className="text-slate-400">/ {c.password}</span>{" "}
-                <span className="text-slate-400">({c.role})</span>
-              </li>
-            ))}
-          </ul>
         </div>
       </div>
     </div>

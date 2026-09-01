@@ -1,28 +1,36 @@
-"use client";
-
-// TEMPORARY: local-only auth guard (no Supabase). The real, working
-// server-side version of this file — which checks the session and role via
-// Supabase and belongs here once a backend is connected — is saved at
-// lib/supabase/app-layout.server-reference.tsx.
-
-import React, { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useSession } from "@/lib/auth/SessionContext";
+import React from "react";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { StoreProvider } from "@/lib/store";
 import Shell from "@/components/shared/Shell";
+import type { Profile } from "@/lib/types";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { session } = useSession();
-  const router = useRouter();
+// Defense in depth alongside middleware.ts: this Server Component re-checks
+// the session and looks up the caller's role from `profiles` itself, so a
+// protected page never renders without a verified server-side identity.
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const supabase = await createClient();
 
-  useEffect(() => {
-    if (!session) router.replace("/login");
-  }, [session, router]);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) return null;
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, email, full_name, role, phone, created_at")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile) {
+    redirect("/login");
+  }
 
   return (
-    <StoreProvider profile={session}>
+    <StoreProvider profile={profile as Profile}>
       <Shell>{children}</Shell>
     </StoreProvider>
   );

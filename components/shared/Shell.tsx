@@ -8,7 +8,7 @@ import {
   LogOut, ScanLine, ShieldCheck, Stethoscope, UserRound, Users, Wrench, X,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { useSession } from "@/lib/auth/SessionContext";
+import { createClient } from "@/lib/supabase/client";
 import type { Notification, Role } from "@/lib/types";
 import AssistantWidget from "./AssistantWidget";
 import { buildAssistantContext } from "@/lib/assistant/scope";
@@ -53,7 +53,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     currentUser, previewRole, setPreviewRole, effectiveRole, notifications, markNotificationRead,
     appointments, scans, reports, billing, records, equipment, profiles, logAssistantAction,
   } = store;
-  const { logout } = useSession();
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
   const nav = NAV_BY_ROLE[effectiveRole];
@@ -66,14 +65,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     [currentUser, profiles, appointments, scans, reports, billing, records, equipment]
   );
 
-  // TEMPORARY: local-only auth. To go live with Supabase, swap this back to
-  // `await createClient().auth.signOut()` — see
-  // lib/supabase/login-page.server-reference.tsx for the pattern.
-  function handleLogout() {
+  async function handleLogout() {
     setSigningOut(true);
-    logout();
+    const supabase = createClient();
+    await supabase.auth.signOut();
     router.push("/login");
-    setSigningOut(false);
+    router.refresh();
   }
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import {
   SEED_APPOINTMENTS, SEED_AUDIT, SEED_BILLING, SEED_EQUIPMENT,
   SEED_NOTIFICATIONS, SEED_PROFILES, SEED_RECORDS, SEED_REPORTS, SEED_SCANS, SCAN_PRICES,
@@ -12,47 +12,6 @@ import type {
 
 let uid = 100;
 const newId = (prefix: string) => `${prefix}-${++uid}-${Date.now().toString(36)}`;
-
-// TEMPORARY cross-tab sync for demo mode: there's no backend yet (see
-// lib/auth/local-accounts.ts), so without this, each browser tab boots its
-// own isolated copy of the seed data and a booking made in one tab is
-// invisible in another. Mirroring the shared collections to localStorage —
-// and listening for the native `storage` event, which the browser fires in
-// every OTHER tab of the same origin whenever localStorage changes — makes
-// bookings/uploads/reports show up across tabs without a real server. This
-// is last-write-wins with no conflict resolution; it's a stand-in for the
-// Supabase wiring described in README.md, not a replacement for it.
-const STORAGE_KEY = "capital-radiology-demo-store-v1";
-
-interface PersistedData {
-  records: MedicalRecord[];
-  appointments: Appointment[];
-  scans: MriScan[];
-  reports: RadiologyReport[];
-  billing: Billing[];
-  equipment: EquipmentLog[];
-  audit: AuditLog[];
-  notifications: Notification[];
-}
-
-function loadPersisted(): PersistedData | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as PersistedData) : null;
-  } catch {
-    return null;
-  }
-}
-
-function savePersisted(data: PersistedData) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch {
-    // best-effort only — ignore quota errors / privacy-mode storage blocks
-  }
-}
 
 interface Store {
   // real, authenticated identity — sourced from Supabase auth + profiles.role,
@@ -127,43 +86,14 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
   );
 
   const [profiles] = useState<Profile[]>(SEED_PROFILES);
-  const [records, setRecords] = useState<MedicalRecord[]>(() => loadPersisted()?.records ?? SEED_RECORDS);
-  const [appointments, setAppointments] = useState<Appointment[]>(() => loadPersisted()?.appointments ?? SEED_APPOINTMENTS);
-  const [scans, setScans] = useState<MriScan[]>(() => loadPersisted()?.scans ?? SEED_SCANS);
-  const [reports, setReports] = useState<RadiologyReport[]>(() => loadPersisted()?.reports ?? SEED_REPORTS);
-  const [billing, setBilling] = useState<Billing[]>(() => loadPersisted()?.billing ?? SEED_BILLING);
-  const [equipment, setEquipment] = useState<EquipmentLog[]>(() => loadPersisted()?.equipment ?? SEED_EQUIPMENT);
-  const [audit, setAudit] = useState<AuditLog[]>(() => loadPersisted()?.audit ?? SEED_AUDIT);
-  const [notifications, setNotifications] = useState<Notification[]>(() => loadPersisted()?.notifications ?? SEED_NOTIFICATIONS);
-
-  // Persist on every change so new tabs (and reloads) pick up the latest state.
-  useEffect(() => {
-    savePersisted({ records, appointments, scans, reports, billing, equipment, audit, notifications });
-  }, [records, appointments, scans, reports, billing, equipment, audit, notifications]);
-
-  // Pick up changes written by other tabs. The `storage` event only fires in
-  // tabs OTHER than the one that wrote the change, so this can't loop with
-  // the save effect above.
-  useEffect(() => {
-    function onStorage(e: StorageEvent) {
-      if (e.key !== STORAGE_KEY || !e.newValue) return;
-      try {
-        const data = JSON.parse(e.newValue) as PersistedData;
-        setRecords(data.records);
-        setAppointments(data.appointments);
-        setScans(data.scans);
-        setReports(data.reports);
-        setBilling(data.billing);
-        setEquipment(data.equipment);
-        setAudit(data.audit);
-        setNotifications(data.notifications);
-      } catch {
-        // ignore malformed data from another tab
-      }
-    }
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  const [records, setRecords] = useState<MedicalRecord[]>(SEED_RECORDS);
+  const [appointments, setAppointments] = useState<Appointment[]>(SEED_APPOINTMENTS);
+  const [scans, setScans] = useState<MriScan[]>(SEED_SCANS);
+  const [reports, setReports] = useState<RadiologyReport[]>(SEED_REPORTS);
+  const [billing, setBilling] = useState<Billing[]>(SEED_BILLING);
+  const [equipment, setEquipment] = useState<EquipmentLog[]>(SEED_EQUIPMENT);
+  const [audit, setAudit] = useState<AuditLog[]>(SEED_AUDIT);
+  const [notifications, setNotifications] = useState<Notification[]>(SEED_NOTIFICATIONS);
 
   const writeAudit = useCallback(
     (user: Profile, action: string, entity: string, details: string) => {

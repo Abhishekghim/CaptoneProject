@@ -1,47 +1,74 @@
 "use client";
 
-// TEMPORARY: local-only auth (no Supabase, nothing persisted — see
-// lib/auth/local-accounts.ts). The real, working Supabase version of this
-// page is saved at lib/supabase/signup-page.server-reference.tsx.
-//
-// Patients only. There is deliberately no role field anywhere on this page —
-// role is never chosen by the user, on this form or any other; it's
-// hardcoded to 'patient' inside createPatientAccount().
-//
-// Staff accounts (technician, radiologist, admin) are NOT self-registerable
-// here or anywhere else in the app — see the premade demo accounts on the
-// login page for those roles.
-
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Activity, UserPlus } from "lucide-react";
-import { useSession } from "@/lib/auth/SessionContext";
-import { createPatientAccount } from "@/lib/auth/local-accounts";
+import { createClient } from "@/lib/supabase/client";
 
+// Patients only. There is deliberately no role field anywhere on this page —
+// role is never chosen by the user, on this form or any other.
+//
+// Staff accounts (technician, radiologist, admin) are NOT self-registerable
+// here or anywhere else in the app. Create them via an admin invite flow
+// (e.g. supabase.auth.admin.inviteUserByEmail from a trusted server context)
+// or directly in the Supabase dashboard, then set profiles.role explicitly.
+// Do not add a public signup path for staff roles.
 export default function SignupPage() {
   const router = useRouter();
-  const { login } = useSession();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     setSubmitting(true);
 
-    const result = createPatientAccount(email, password, fullName);
-    if (!result.ok) {
-      setError(result.error);
-      setSubmitting(false);
-      return;
-    }
+    try {
+      const supabase = createClient();
 
-    login(result.profile);
-    router.push("/dashboard");
-    setSubmitting(false);
+      // full_name is passed as auth user metadata; the `handle_new_user`
+      // trigger in database/schema.sql reads it when it creates the
+      // matching `profiles` row. That trigger is what actually inserts
+      // the profile (as a security-definer function, bypassing RLS) and
+      // it hardcodes role to 'patient' via
+      //   coalesce((raw_user_meta_data ->> 'role')::user_role, 'patient')
+      // — since we never send a `role` key in the metadata below, every
+      // self-service signup is forced to 'patient' server-side.
+      //
+      // We intentionally do NOT also insert into `profiles` from this
+      // page: there is no RLS policy letting a newly authenticated user
+      // insert their own profile row (see database/schema.sql — only the
+      // trigger and admins can write to `profiles`), so a client-side
+      // insert here would just fail. That's correct: it means role
+      // assignment can't be forged by tampering with a client request.
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: fullName } },
+      });
+
+      if (signUpError) {
+        setError(signUpError.message || "Could not create your account. Please try again.");
+        return;
+      }
+
+      if (data.session) {
+        router.push("/dashboard");
+        router.refresh();
+      } else {
+        // Email confirmation is required before a session exists.
+        setNotice("Account created. Check your email to confirm your address, then sign in.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -61,9 +88,6 @@ export default function SignupPage() {
           <h1 className="text-lg font-bold text-navy">Create a patient account</h1>
           <p className="mt-1 text-sm text-slate-500">
             For staff accounts, contact an administrator — this form is for patients only.
-          </p>
-          <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Local demo mode: this account is stored in memory only and will disappear on page reload.
           </p>
 
           <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
@@ -105,7 +129,7 @@ export default function SignupPage() {
                 id="password"
                 type="password"
                 required
-                minLength={4}
+                minLength={8}
                 autoComplete="new-password"
                 className="input w-full"
                 value={password}
@@ -116,6 +140,11 @@ export default function SignupPage() {
             {error && (
               <p role="alert" className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
                 {error}
+              </p>
+            )}
+            {notice && (
+              <p role="status" className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                {notice}
               </p>
             )}
 

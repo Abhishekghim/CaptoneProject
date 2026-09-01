@@ -13,10 +13,12 @@ export default function LoginPage() {
   );
 }
 
+const GENERIC_ERROR = "Invalid email/username or password. Please try again.";
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -28,10 +30,27 @@ function LoginForm() {
 
     try {
       const supabase = createClient();
+      const trimmed = identifier.trim();
+
+      // supabase.auth.signInWithPassword() only accepts an email, so a
+      // non-email identifier needs resolving to one first. Deliberately the
+      // *same* generic error either way below — a distinct "no such
+      // username" message would let someone enumerate valid usernames.
+      let email = trimmed;
+      if (!trimmed.includes("@")) {
+        const { data: resolvedEmail, error: rpcError } = await supabase.rpc("get_email_for_username", {
+          p_username: trimmed,
+        });
+        if (rpcError || !resolvedEmail) {
+          setError(GENERIC_ERROR);
+          return;
+        }
+        email = resolvedEmail;
+      }
 
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) {
-        setError("Invalid email or password. Please try again.");
+        setError(GENERIC_ERROR);
         return;
       }
       if (!data.user) {
@@ -78,21 +97,21 @@ function LoginForm() {
 
         <div className="card p-6 sm:p-7">
           <h1 className="text-lg font-bold text-navy">Sign in</h1>
-          <p className="mt-1 text-sm text-slate-500">Use your email and password to access your account.</p>
+          <p className="mt-1 text-sm text-slate-500">Use your email or username and password to access your account.</p>
 
           <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="email" className="mb-1 block text-xs font-semibold text-slate-600">
-                Email
+              <label htmlFor="identifier" className="mb-1 block text-xs font-semibold text-slate-600">
+                Email or username
               </label>
               <input
-                id="email"
-                type="email"
+                id="identifier"
+                type="text"
                 required
-                autoComplete="email"
+                autoComplete="username"
                 className="input w-full"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
               />
             </div>
 

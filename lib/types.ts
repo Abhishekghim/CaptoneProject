@@ -11,6 +11,7 @@ export interface Profile {
   full_name: string;
   role: Role;
   phone?: string;
+  username?: string | null;
   created_at: string;
 }
 

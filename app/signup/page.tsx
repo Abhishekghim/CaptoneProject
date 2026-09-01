@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Activity, UserPlus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
+const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,24}$/;
+
 // Patients only. There is deliberately no role field anywhere on this page —
 // role is never chosen by the user, on this form or any other.
 //
@@ -16,6 +18,7 @@ import { createClient } from "@/lib/supabase/client";
 export default function SignupPage() {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -26,16 +29,40 @@ export default function SignupPage() {
     e.preventDefault();
     setError(null);
     setNotice(null);
+
+    const trimmedUsername = username.trim();
+    if (!USERNAME_PATTERN.test(trimmedUsername)) {
+      setError("Username must be 3-24 characters: letters, numbers, and underscores only.");
+      return;
+    }
+
     setSubmitting(true);
 
     try {
       const supabase = createClient();
 
-      // full_name is passed as auth user metadata; the `handle_new_user`
-      // trigger in database/schema.sql reads it when it creates the
-      // matching `profiles` row. That trigger is what actually inserts
-      // the profile (as a security-definer function, bypassing RLS) and
-      // it hardcodes role to 'patient' via
+      // Pre-check for a clean inline error. The database also enforces this
+      // (a case-insensitive unique index — see database/002_usernames.sql),
+      // so a race between two people signing up with the same username at
+      // the same instant still can't create a duplicate; it would just
+      // surface as a less friendly error from signUp() below instead.
+      const { data: available, error: availabilityError } = await supabase.rpc("is_username_available", {
+        p_username: trimmedUsername,
+      });
+      if (availabilityError) {
+        setError("Could not verify username availability. Please try again.");
+        return;
+      }
+      if (!available) {
+        setError("That username is already taken.");
+        return;
+      }
+
+      // full_name and username are passed as auth user metadata; the
+      // `handle_new_user` trigger in database/002_usernames.sql reads them
+      // when it creates the matching `profiles` row. That trigger is what
+      // actually inserts the profile (as a security-definer function,
+      // bypassing RLS) and it hardcodes role to 'patient' via
       //   coalesce((raw_user_meta_data ->> 'role')::user_role, 'patient')
       // — since we never send a `role` key in the metadata below, every
       // self-service signup is forced to 'patient' server-side.
@@ -49,7 +76,7 @@ export default function SignupPage() {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: fullName } },
+        options: { data: { full_name: fullName, username: trimmedUsername } },
       });
 
       if (signUpError) {
@@ -104,6 +131,26 @@ export default function SignupPage() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
               />
+            </div>
+
+            <div>
+              <label htmlFor="username" className="mb-1 block text-xs font-semibold text-slate-600">
+                Username
+              </label>
+              <input
+                id="username"
+                type="text"
+                required
+                autoComplete="username"
+                pattern="[a-zA-Z0-9_]{3,24}"
+                title="3-24 characters: letters, numbers, and underscores only"
+                className="input w-full"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+              <p className="mt-1 text-[11px] text-slate-400">
+                You can sign in with this username instead of your email. Letters, numbers, underscores only.
+              </p>
             </div>
 
             <div>

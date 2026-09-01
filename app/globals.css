@@ -16,21 +16,26 @@ body { @apply bg-slate-50 text-navy antialiased; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
-.card { @apply rounded-xl border border-slate-200 bg-white shadow-card; }
+.card { @apply rounded-2xl border border-slate-200/80 bg-white shadow-card; }
 .label { @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500; }
 .input {
   @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-navy
   outline-none transition focus:border-medical focus:ring-2 focus:ring-sky-200;
 }
+
+/* Premium CTA hierarchy: primary uses a subtle gradient + brand-colour glow
+   and lifts slightly on hover/press; ghost stays crisp and quiet so the
+   primary action always reads first. */
 .btn-primary {
-  @apply inline-flex items-center gap-2 rounded-lg bg-medical px-4 py-2 text-sm font-semibold
-  text-white transition hover:bg-medical-dark focus-visible:outline focus-visible:outline-2
-  focus-visible:outline-offset-2 focus-visible:outline-medical disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-medical to-medical-dark px-4 py-2 text-sm font-semibold
+  text-white shadow-glow transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg hover:brightness-110
+  active:translate-y-0 active:brightness-95 focus-visible:outline focus-visible:outline-2
+  focus-visible:outline-offset-2 focus-visible:outline-medical disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0;
 }
 .btn-ghost {
-  @apply inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2
-  text-sm font-semibold text-navy transition hover:border-medical hover:text-medical
-  focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-medical;
+  @apply inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2
+  text-sm font-semibold text-navy transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-medical hover:text-medical hover:shadow-sm
+  active:translate-y-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-medical;
 }
 .chip { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold; }
 
@@ -39,3 +44,10 @@ body { @apply bg-slate-50 text-navy antialiased; }
   50% { transform: translateY(-10px); }
 }
 .animate-float { animation: float 6s ease-in-out infinite; }
+
+/* Subtle premium texture for hero/dark sections — a faint dot grid, never a
+   dominant pattern. Used as a decorative absolute-positioned layer. */
+.bg-dot-grid {
+  background-image: radial-gradient(currentColor 1px, transparent 1px);
+  background-size: 22px 22px;
+}

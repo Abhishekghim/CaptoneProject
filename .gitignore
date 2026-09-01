@@ -1,0 +1,24 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# env files — never commit real secrets
+.env
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+# claude code — personal/local settings only
+.claude/settings.local.json
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*

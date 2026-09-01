@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
+
+:root {
+  --navy: #0f172a;
+  --medical: #0284c7;
+}
+
+html { scroll-behavior: smooth; }
+body { @apply bg-slate-50 text-navy antialiased; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+.card { @apply rounded-xl border border-slate-200 bg-white shadow-card; }
+.label { @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500; }
+.input {
+  @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-navy
+  outline-none transition focus:border-medical focus:ring-2 focus:ring-sky-200;
+}
+.btn-primary {
+  @apply inline-flex items-center gap-2 rounded-lg bg-medical px-4 py-2 text-sm font-semibold
+  text-white transition hover:bg-medical-dark focus-visible:outline focus-visible:outline-2
+  focus-visible:outline-offset-2 focus-visible:outline-medical disabled:cursor-not-allowed disabled:opacity-50;
+}
+.btn-ghost {
+  @apply inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2
+  text-sm font-semibold text-navy transition hover:border-medical hover:text-medical
+  focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-medical;
+}
+.chip { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.animate-float { animation: float 6s ease-in-out infinite; }

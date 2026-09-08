@@ -153,6 +153,12 @@ function LoginForm() {
               Create an account
             </a>
           </p>
+          <p className="mt-2 text-center text-sm text-slate-500">
+            Referring doctor without an account?{" "}
+            <a href="/request-doctor-access" className="font-semibold text-medical hover:underline">
+              Request access
+            </a>
+          </p>
         </div>
       </div>
     </div>

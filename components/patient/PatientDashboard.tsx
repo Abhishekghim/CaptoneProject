@@ -195,16 +195,39 @@ export default function PatientDashboard() {
 /* ------------------------------------------------------------------ */
 function BookingCard() {
   const store = useStore();
+  const me = store.currentUser;
   const [bodyPart, setBodyPart] = useState(BODY_PARTS[0]);
   const [location, setLocation] = useState(LOCATIONS[0]);
   const [date, setDate] = useState(format(addDays(new Date(), 1), "yyyy-MM-dd"));
   const [slot, setSlot] = useState(TIME_SLOTS[1]);
   const [referral, setReferral] = useState<string | null>(null);
   const [referringDoctorId, setReferringDoctorId] = useState<string>("");
+  const [otherDoctorName, setOtherDoctorName] = useState("");
+  const [otherDoctorPractice, setOtherDoctorPractice] = useState("");
+  const [usingReferralId, setUsingReferralId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const referringDoctors = store.profiles.filter((p) => p.role === "referring_doctor");
+  const usingOtherDoctor = referringDoctorId === "__other__";
+
+  // Path A: referrals a doctor already sent for this patient, waiting to be
+  // used. Booking with one skips the manual doctor picker entirely, since
+  // it's already tied to a verified doctor account.
+  const pendingReferrals = store.doctorReferrals.filter((r) => r.patient_id === me.id && !r.used_in_appointment_id);
+  const activeReferral = usingReferralId ? pendingReferrals.find((r) => r.id === usingReferralId) : undefined;
+  const activeReferralDoctor = activeReferral
+    ? store.profiles.find((p) => p.id === activeReferral.referring_doctor_id)
+    : undefined;
+
+  function useReferral(referralId: string) {
+    const ref = pendingReferrals.find((r) => r.id === referralId);
+    if (!ref) return;
+    setUsingReferralId(referralId);
+    setBodyPart(ref.body_part);
+    setReferringDoctorId("");
+    setFeedback(null);
+  }
 
   const takenSlots = store.appointments
     .filter((a) => a.date === date && a.location === location && a.status !== "cancelled")
@@ -214,13 +237,29 @@ function BookingCard() {
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (!activeReferral && usingOtherDoctor && !otherDoctorName.trim()) {
+      setFeedback({ ok: false, text: "Enter your doctor's name, or choose \"None — self-referred\" instead." });
+      return;
+    }
+    if (!activeReferral && usingOtherDoctor && !referral) {
+      setFeedback({ ok: false, text: "Since your doctor isn't in our system yet, please attach a copy of your referral so our technician can verify it." });
+      return;
+    }
+
     const result = store.bookAppointment({
       date, time_slot: slot, location, body_part: bodyPart, referralFileName: referral,
-      referringDoctorId: referringDoctorId || null,
+      referringDoctorId: usingOtherDoctor || !referringDoctorId ? null : referringDoctorId,
+      referringDoctorName: usingOtherDoctor ? otherDoctorName.trim() || null : null,
+      referringDoctorPractice: usingOtherDoctor ? otherDoctorPractice.trim() || null : null,
+      usingReferralId,
     });
     if (result.ok) {
       setFeedback({ ok: true, text: `Booked ${bodyPart} MRI at ${location} on ${format(parseISO(date), "d MMM")} ${slot}. Check the bell icon for your booking notification.` });
       setReferral(null);
+      setOtherDoctorName("");
+      setOtherDoctorPractice("");
+      setUsingReferralId(null);
       if (fileRef.current) fileRef.current.value = "";
     } else {
       setFeedback({ ok: false, text: result.error ?? "Booking failed. Try another slot." });
@@ -234,6 +273,30 @@ function BookingCard() {
         title="Book an MRI"
         subtitle="Choose a scan, pick a slot, and attach your referral"
       />
+
+      {pendingReferrals.length > 0 && !activeReferral && (
+        <div className="mb-5 space-y-2">
+          {pendingReferrals.map((r) => {
+            const doctor = store.profiles.find((p) => p.id === r.referring_doctor_id);
+            return (
+              <div
+                key={r.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-200 bg-sky-50 p-3"
+              >
+                <p className="text-sm text-sky-900">
+                  <span className="font-semibold">{doctor?.full_name ?? "Your doctor"}</span> has referred you for a{" "}
+                  <span className="font-semibold">{r.body_part} MRI</span>
+                  {r.notes && <span className="block text-xs text-sky-700">&ldquo;{r.notes}&rdquo;</span>}
+                </p>
+                <button type="button" className="btn-primary shrink-0 text-xs" onClick={() => useReferral(r.id)}>
+                  Use this referral
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
         <div>
           <label htmlFor="bk-body" className="label">Body part</label>
@@ -247,14 +310,55 @@ function BookingCard() {
             {LOCATIONS.map((l) => <option key={l}>{l}</option>)}
           </select>
         </div>
-        <div>
-          <label htmlFor="bk-doctor" className="label">Referring doctor (optional)</label>
-          <select id="bk-doctor" className="input" value={referringDoctorId} onChange={(e) => setReferringDoctorId(e.target.value)}>
-            <option value="">None — self-referred</option>
-            {referringDoctors.map((d) => (
-              <option key={d.id} value={d.id}>{d.full_name}</option>
-            ))}
-          </select>
+        <div className={usingOtherDoctor || activeReferral ? "md:col-span-2" : undefined}>
+          <label className="label">Referring doctor</label>
+          {activeReferral ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm">
+              <p className="text-sky-900">
+                Using referral from <span className="font-semibold">{activeReferralDoctor?.full_name ?? "your doctor"}</span>
+              </p>
+              <button
+                type="button"
+                className="text-xs font-semibold text-sky-700 underline-offset-2 hover:underline"
+                onClick={() => setUsingReferralId(null)}
+              >
+                Choose a different doctor instead
+              </button>
+            </div>
+          ) : (
+            <>
+              <select id="bk-doctor" className="input" value={referringDoctorId} onChange={(e) => setReferringDoctorId(e.target.value)}>
+                <option value="">None — self-referred</option>
+                {referringDoctors.map((d) => (
+                  <option key={d.id} value={d.id}>{d.full_name}</option>
+                ))}
+                <option value="__other__">My doctor isn&rsquo;t listed</option>
+              </select>
+
+              {usingOtherDoctor && (
+                <div className="mt-3 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="bk-doctor-name" className="label">Doctor&rsquo;s name</label>
+                    <input
+                      id="bk-doctor-name" className="input" placeholder="e.g. Dr. Sarah Kim"
+                      value={otherDoctorName} onChange={(e) => setOtherDoctorName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="bk-doctor-practice" className="label">Practice / clinic <span className="font-normal text-slate-400">(optional)</span></label>
+                    <input
+                      id="bk-doctor-practice" className="input" placeholder="e.g. Northside Family Practice"
+                      value={otherDoctorPractice} onChange={(e) => setOtherDoctorPractice(e.target.value)}
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500 sm:col-span-2">
+                    We don&rsquo;t need their registration number or email — just attach a copy of your referral below and
+                    our technician will verify it before your scan.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
         </div>
         <div>
           <label htmlFor="bk-date" className="label">Date</label>

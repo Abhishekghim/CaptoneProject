@@ -49,6 +49,11 @@ export default function TechnicianPortal() {
                 : [];
               if (record?.contraindications.other) flags.push(record.contraindications.other);
 
+              const referringLabel = a.referring_doctor_id
+                ? store.profiles.find((p) => p.id === a.referring_doctor_id)?.full_name ?? "Unknown doctor"
+                : a.referring_doctor_name;
+              const hasReferralToCheck = Boolean(a.referral_url || a.referring_doctor_name);
+
               return (
                 <li key={a.id} className="rounded-lg border border-slate-200 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -57,11 +62,42 @@ export default function TechnicianPortal() {
                         {a.time_slot} — {patient?.full_name ?? "Unknown patient"} · {a.body_part}
                       </p>
                       <p className="text-xs text-slate-500">{a.location}</p>
+                      {referringLabel && (
+                        <p className="mt-1 text-xs text-slate-500">
+                          Referred by {referringLabel}
+                          {a.referring_doctor_practice && ` · ${a.referring_doctor_practice}`}
+                          {!a.referring_doctor_id && (
+                            <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                              No account yet
+                            </span>
+                          )}
+                        </p>
+                      )}
                       {flags.length > 0 && (
                         <p className="mt-1.5 inline-flex flex-wrap items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">
                           <AlertTriangle size={13} aria-hidden />
                           Safety flags: {flags.join(", ")}
                         </p>
+                      )}
+                      {hasReferralToCheck && (
+                        a.referral_reviewed ? (
+                          <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">
+                            <CheckCircle2 size={13} aria-hidden /> Referral reviewed
+                          </p>
+                        ) : (
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">
+                              <AlertTriangle size={13} aria-hidden /> Referral needs review
+                            </span>
+                            <button
+                              type="button"
+                              className="btn-ghost text-xs"
+                              onClick={() => store.acknowledgeReferral(a.id)}
+                            >
+                              <CheckCircle2 size={13} aria-hidden /> Mark reviewed
+                            </button>
+                          </div>
+                        )
                       )}
                     </div>
                     <div className="flex items-center gap-3">

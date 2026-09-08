@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import type { AppointmentStatus, EquipmentStatus, PaymentStatus, ReportStatus } from "@/lib/types";
+import type { AppointmentStatus, DoctorRequestStatus, EquipmentStatus, PaymentStatus, ReportStatus } from "@/lib/types";
 import { LucideIcon } from "lucide-react";
 
 const statusStyles: Record<string, string> = {
@@ -20,12 +20,14 @@ const statusStyles: Record<string, string> = {
   maintenance: "bg-amber-100 text-amber-800",
   offline: "bg-rose-100 text-rose-800",
   calibration_due: "bg-rose-100 text-rose-800",
+  approved: "bg-emerald-100 text-emerald-800",
+  rejected: "bg-rose-100 text-rose-800",
 };
 
 export function StatusChip({
   status,
 }: {
-  status: AppointmentStatus | ReportStatus | PaymentStatus | EquipmentStatus;
+  status: AppointmentStatus | ReportStatus | PaymentStatus | EquipmentStatus | DoctorRequestStatus;
 }) {
   return (
     <span className={`chip ${statusStyles[status] ?? "bg-slate-100 text-slate-700"}`}>

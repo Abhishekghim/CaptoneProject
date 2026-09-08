@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Routes reachable without a session. "/" is the public marketing page —
 // unlike the other three, a signed-in user is NOT bounced away from it.
-const NO_AUTH_REQUIRED = ["/", "/login", "/signup", "/forgot-password", "/reset-password"];
+const NO_AUTH_REQUIRED = ["/", "/login", "/signup", "/forgot-password", "/reset-password", "/request-doctor-access"];
 // A signed-in user hitting one of these gets sent to their dashboard instead.
 const AUTH_ONLY_PAGES = ["/login", "/signup"];
 

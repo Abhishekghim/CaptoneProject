@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { EmptyState, SectionTitle, StatCard, StatusChip } from "@/components/shared/ui";
+import DoctorRequestsPanel from "./DoctorRequestsPanel";
 
 export default function AdminDashboard() {
   const store = useStore();
@@ -40,6 +41,7 @@ export default function AdminDashboard() {
       </section>
 
       <BillingPanel />
+      <DoctorRequestsPanel />
       <EquipmentPanel />
       <AuditPanel />
     </div>

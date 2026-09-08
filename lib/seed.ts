@@ -1,6 +1,6 @@
 import { addDays, format, subDays } from "date-fns";
 import type {
-  Appointment, AuditLog, Billing, EquipmentLog, MedicalRecord,
+  Appointment, AuditLog, Billing, DoctorReferral, EquipmentLog, MedicalRecord,
   MriScan, Notification, Profile, RadiologyReport,
 } from "./types";
 
@@ -44,11 +44,31 @@ export const SEED_RECORDS: MedicalRecord[] = [
 ];
 
 export const SEED_APPOINTMENTS: Appointment[] = [
-  { id: "apt-1", patient_id: "u-patient",  date: d(0),  time_slot: "09:00", location: "Sydney CBD Clinic",   body_part: "Lumbar Spine", status: "scheduled",   referral_url: "referrals/amelia-ng-lumbar.pdf", referring_doctor_id: "u-doctor", created_at: ts(-6) },
-  { id: "apt-2", patient_id: "u-patient2", date: d(0),  time_slot: "10:30", location: "Sydney CBD Clinic",   body_part: "Right Knee",   status: "scheduled",   referral_url: "referrals/raj-patel-knee.pdf",   referring_doctor_id: null, created_at: ts(-4) },
-  { id: "apt-3", patient_id: "u-patient3", date: d(-2), time_slot: "14:00", location: "Parramatta Imaging",  body_part: "Brain",        status: "completed",   referral_url: "referrals/s-kowalski-brain.pdf", referring_doctor_id: null, created_at: ts(-10) },
-  { id: "apt-4", patient_id: "u-patient",  date: d(-30),time_slot: "11:00", location: "Sydney CBD Clinic",   body_part: "Cervical Spine", status: "completed", referral_url: null, referring_doctor_id: "u-doctor", created_at: ts(-35) },
-  { id: "apt-5", patient_id: "u-patient2", date: d(5),  time_slot: "15:30", location: "Chatswood Centre",    body_part: "Shoulder",     status: "scheduled",   referral_url: null, referring_doctor_id: null, created_at: ts(-1) },
+  { id: "apt-1", patient_id: "u-patient",  date: d(0),  time_slot: "09:00", location: "Sydney CBD Clinic",   body_part: "Lumbar Spine", status: "scheduled",   referral_url: "referrals/amelia-ng-lumbar.pdf", referring_doctor_id: "u-doctor", referring_doctor_name: null, referring_doctor_practice: null, referral_reviewed: false, referral_reviewed_by: null, referral_reviewed_at: null, created_at: ts(-6) },
+  { id: "apt-2", patient_id: "u-patient2", date: d(0),  time_slot: "10:30", location: "Sydney CBD Clinic",   body_part: "Right Knee",   status: "scheduled",   referral_url: "referrals/raj-patel-knee.pdf",   referring_doctor_id: null, referring_doctor_name: "Dr. Sarah Kim", referring_doctor_practice: "Northside Family Practice", referral_reviewed: false, referral_reviewed_by: null, referral_reviewed_at: null, created_at: ts(-4) },
+  { id: "apt-3", patient_id: "u-patient3", date: d(-2), time_slot: "14:00", location: "Parramatta Imaging",  body_part: "Brain",        status: "completed",   referral_url: "referrals/s-kowalski-brain.pdf", referring_doctor_id: null, referring_doctor_name: null, referring_doctor_practice: null, referral_reviewed: true, referral_reviewed_by: "u-tech", referral_reviewed_at: ts(-2, 13, 50), created_at: ts(-10) },
+  { id: "apt-4", patient_id: "u-patient",  date: d(-30),time_slot: "11:00", location: "Sydney CBD Clinic",   body_part: "Cervical Spine", status: "completed", referral_url: null, referring_doctor_id: "u-doctor", referring_doctor_name: null, referring_doctor_practice: null, referral_reviewed: false, referral_reviewed_by: null, referral_reviewed_at: null, created_at: ts(-35) },
+  { id: "apt-5", patient_id: "u-patient2", date: d(5),  time_slot: "15:30", location: "Chatswood Centre",    body_part: "Shoulder",     status: "scheduled",   referral_url: null, referring_doctor_id: null, referring_doctor_name: null, referring_doctor_practice: null, referral_reviewed: false, referral_reviewed_by: null, referral_reviewed_at: null, created_at: ts(-1) },
+];
+
+// Path A: a doctor-initiated referral, created before the patient books (see
+// lib/store.tsx createDoctorReferral). The first one matches an existing
+// patient by email — Sofia Kowalski should see it waiting on her dashboard
+// right away. The second doesn't match anyone yet, demonstrating the
+// "awaiting sign-up" state a referring doctor sees on their own portal.
+export const SEED_DOCTOR_REFERRALS: DoctorReferral[] = [
+  {
+    id: "dref-1", referring_doctor_id: "u-doctor",
+    patient_full_name: "Sofia Kowalski", patient_email: "s.kowalski@example.com", patient_dob: "1996-07-29",
+    body_part: "Pelvis", notes: "Follow-up imaging requested after specialist review.",
+    patient_id: "u-patient3", used_in_appointment_id: null, created_at: ts(-1, 10, 0),
+  },
+  {
+    id: "dref-2", referring_doctor_id: "u-doctor",
+    patient_full_name: "James Whitfield", patient_email: "j.whitfield@example.com", patient_dob: "1982-03-14",
+    body_part: "Lumbar Spine", notes: null,
+    patient_id: null, used_in_appointment_id: null, created_at: ts(-3, 9, 30),
+  },
 ];
 
 export const SEED_SCANS: MriScan[] = [

@@ -2,11 +2,11 @@
 
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import {
-  SEED_APPOINTMENTS, SEED_AUDIT, SEED_BILLING, SEED_EQUIPMENT,
+  SEED_APPOINTMENTS, SEED_AUDIT, SEED_BILLING, SEED_DOCTOR_REFERRALS, SEED_EQUIPMENT,
   SEED_NOTIFICATIONS, SEED_PROFILES, SEED_RECORDS, SEED_REPORTS, SEED_SCANS, SCAN_PRICES,
 } from "./seed";
 import type {
-  Appointment, AuditLog, Billing, Contraindications, EquipmentLog,
+  Appointment, AuditLog, Billing, Contraindications, DoctorReferral, EquipmentLog,
   MedicalRecord, MriScan, Notification, Profile, RadiologyReport, Role,
 } from "./types";
 
@@ -36,11 +36,14 @@ interface Store {
   equipment: EquipmentLog[];
   audit: AuditLog[];
   notifications: Notification[];
+  doctorReferrals: DoctorReferral[];
 
   // patient actions
   bookAppointment: (input: {
     date: string; time_slot: string; location: string; body_part: string;
     referralFileName: string | null; referringDoctorId: string | null;
+    referringDoctorName: string | null; referringDoctorPractice: string | null;
+    usingReferralId?: string | null;
   }) => { ok: boolean; error?: string };
   cancelAppointment: (id: string) => void;
   updateRecord: (patch: { history: string; contraindications: Contraindications; emergency_contact: MedicalRecord["emergency_contact"] }) => void;
@@ -48,6 +51,10 @@ interface Store {
   // technician actions
   startScan: (appointmentId: string) => void;
   logScan: (input: { appointment_id: string; body_part: string; protocol: string; scan_duration: number; machine_name: string; dicomFileName: string }) => void;
+  // Technician's confirmation that a referral (uploaded document, or a
+  // patient-named doctor without an account yet) matches the requested
+  // scan — part of their normal pre-scan check, not a booking/scan gate.
+  acknowledgeReferral: (appointmentId: string) => void;
 
   // radiologist actions
   saveReportDraft: (scanId: string, findings: string, impression: string) => string;
@@ -55,6 +62,13 @@ interface Store {
 
   // referring doctor actions
   uploadReferral: (appointmentId: string, fileName: string) => void;
+  // Doctor-initiated referral, created ahead of the patient booking (or even
+  // signing up) — auto-links to a patient account by email if one already
+  // exists. See lib/types.ts DoctorReferral for why email, not name+age.
+  createDoctorReferral: (input: {
+    patientFullName: string; patientEmail: string; patientDob: string | null;
+    bodyPart: string; notes: string | null;
+  }) => { ok: boolean; error?: string; matchedExistingPatient: boolean };
 
   // admin actions
   markBillPaid: (billId: string, method: string) => void;
@@ -94,6 +108,7 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
   const [equipment, setEquipment] = useState<EquipmentLog[]>(SEED_EQUIPMENT);
   const [audit, setAudit] = useState<AuditLog[]>(SEED_AUDIT);
   const [notifications, setNotifications] = useState<Notification[]>(SEED_NOTIFICATIONS);
+  const [doctorReferrals, setDoctorReferrals] = useState<DoctorReferral[]>(SEED_DOCTOR_REFERRALS);
 
   const writeAudit = useCallback(
     (user: Profile, action: string, entity: string, details: string) => {
@@ -128,11 +143,17 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
   }, []);
 
   const bookAppointment: Store["bookAppointment"] = useCallback(
-    ({ date, time_slot, location, body_part, referralFileName, referringDoctorId }) => {
+    ({ date, time_slot, location, body_part, referralFileName, referringDoctorId, referringDoctorName, referringDoctorPractice, usingReferralId }) => {
       const clash = appointments.some(
         (a) => a.date === date && a.time_slot === time_slot && a.location === location && a.status !== "cancelled"
       );
       if (clash) return { ok: false, error: "That slot is already booked at this location. Choose another time." };
+
+      const referral = usingReferralId ? doctorReferrals.find((r) => r.id === usingReferralId) : undefined;
+      // A doctor-initiated referral always wins over anything the patient
+      // separately typed/picked — it's already a verified account, not a
+      // free-text claim.
+      const finalReferringDoctorId = referral ? referral.referring_doctor_id : referringDoctorId;
 
       const apt: Appointment = {
         id: newId("apt"),
@@ -140,7 +161,15 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
         date, time_slot, location, body_part,
         status: "scheduled",
         referral_url: referralFileName ? `referrals/${referralFileName}` : null,
-        referring_doctor_id: referringDoctorId,
+        referring_doctor_id: finalReferringDoctorId,
+        referring_doctor_name: finalReferringDoctorId ? null : referringDoctorName,
+        referring_doctor_practice: finalReferringDoctorId ? null : referringDoctorPractice,
+        // A doctor-initiated referral was already reviewed by definition — it
+        // came from a verified doctor account, not an uploaded document a
+        // technician needs to independently check.
+        referral_reviewed: Boolean(referral),
+        referral_reviewed_by: null,
+        referral_reviewed_at: referral ? new Date().toISOString() : null,
         created_at: new Date().toISOString(),
       };
       setAppointments((prev) => [apt, ...prev]);
@@ -156,11 +185,16 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
         },
         ...prev,
       ]);
+      if (referral) {
+        setDoctorReferrals((prev) =>
+          prev.map((r) => (r.id === referral.id ? { ...r, used_in_appointment_id: apt.id } : r))
+        );
+      }
       writeAudit(currentUser, "APPOINTMENT_BOOKED", "appointments", `${body_part} — ${location} on ${date} ${time_slot}`);
       pushNotification(currentUser.id, "appointment_booked", "Appointment booked", `${body_part} MRI — ${location} on ${date} at ${time_slot}.`);
       return { ok: true };
     },
-    [appointments, currentUser, writeAudit, pushNotification]
+    [appointments, currentUser, doctorReferrals, writeAudit, pushNotification]
   );
 
   const cancelAppointment = useCallback(
@@ -193,6 +227,20 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
     (appointmentId: string) => {
       setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, status: "in_progress" } : a)));
       writeAudit(currentUser, "SCAN_STARTED", "appointments", `Appointment ${appointmentId} moved to In Progress`);
+    },
+    [currentUser, writeAudit]
+  );
+
+  const acknowledgeReferral = useCallback(
+    (appointmentId: string) => {
+      setAppointments((prev) =>
+        prev.map((a) =>
+          a.id === appointmentId
+            ? { ...a, referral_reviewed: true, referral_reviewed_by: currentUser.id, referral_reviewed_at: new Date().toISOString() }
+            : a
+        )
+      );
+      writeAudit(currentUser, "REFERRAL_REVIEWED", "appointments", `Referral reviewed for appointment ${appointmentId}`);
     },
     [currentUser, writeAudit]
   );
@@ -286,6 +334,50 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
     [currentUser, writeAudit]
   );
 
+  const createDoctorReferral: Store["createDoctorReferral"] = useCallback(
+    ({ patientFullName, patientEmail, patientDob, bodyPart, notes }) => {
+      const email = patientEmail.trim().toLowerCase();
+      if (!email) return { ok: false, error: "Patient email is required.", matchedExistingPatient: false };
+
+      // Matches by email only — the same unique identifier auth already
+      // keys on. In the real backend this same lookup happens via a
+      // security-definer trigger on profile creation, so a patient who
+      // signs up *after* this referral is created still gets linked
+      // automatically the moment their account exists.
+      const matchedPatient = profiles.find((p) => p.role === "patient" && p.email.toLowerCase() === email);
+
+      const referral: DoctorReferral = {
+        id: newId("dref"),
+        referring_doctor_id: currentUser.id,
+        patient_full_name: patientFullName.trim(),
+        patient_email: email,
+        patient_dob: patientDob,
+        body_part: bodyPart,
+        notes: notes?.trim() || null,
+        patient_id: matchedPatient?.id ?? null,
+        used_in_appointment_id: null,
+        created_at: new Date().toISOString(),
+      };
+      setDoctorReferrals((prev) => [referral, ...prev]);
+      writeAudit(
+        currentUser,
+        "DOCTOR_REFERRAL_CREATED",
+        "doctor_referrals",
+        `${bodyPart} referral created for ${patientFullName}${matchedPatient ? " (matched to existing patient account)" : " (awaiting patient sign-up)"}`
+      );
+      if (matchedPatient) {
+        pushNotification(
+          matchedPatient.id,
+          "referral_received",
+          "You've been referred for an MRI",
+          `${currentUser.full_name} has referred you for a ${bodyPart} MRI. You can book anytime — we've pre-filled it for you.`
+        );
+      }
+      return { ok: true, matchedExistingPatient: Boolean(matchedPatient) };
+    },
+    [profiles, currentUser, writeAudit, pushNotification]
+  );
+
   const markBillPaid = useCallback(
     (billId: string, method: string) => {
       setBilling((prev) =>
@@ -306,11 +398,10 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
     [currentUser, writeAudit, billing, appointments, pushNotification]
   );
 
-  // Deliberately does not take the message/reply text — the audit log is
-  // persisted (see the cross-tab localStorage sync above) and chat content
-  // hasn't been given the encryption/access-control treatment that would
-  // justify storing it (see constraint in the assistant's system prompt
-  // design, lib/assistant/prompts.ts). Metadata only.
+  // Deliberately does not take the message/reply text — chat content hasn't
+  // been given the encryption/access-control treatment that would justify
+  // storing it (see constraint in the assistant's system prompt design,
+  // lib/assistant/prompts.ts). Metadata only.
   const logAssistantAction = useCallback(
     (summary: string) => {
       writeAudit(currentUser, "ASSISTANT_QUERY", "assistant", summary);
@@ -342,20 +433,20 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
   const value = useMemo<Store>(
     () => ({
       currentUser, previewRole, setPreviewRole, effectiveRole,
-      profiles, records, appointments, scans, reports, billing, equipment, audit, notifications,
+      profiles, records, appointments, scans, reports, billing, equipment, audit, notifications, doctorReferrals,
       bookAppointment, cancelAppointment, updateRecord,
-      startScan, logScan,
+      startScan, logScan, acknowledgeReferral,
       saveReportDraft, finalizeReport,
-      uploadReferral,
+      uploadReferral, createDoctorReferral,
       markBillPaid, scheduleEquipmentService,
       markNotificationRead,
       logAssistantAction,
     }),
     [
       currentUser, previewRole, setPreviewRole, effectiveRole, profiles, records, appointments, scans, reports,
-      billing, equipment, audit, notifications, bookAppointment, cancelAppointment, updateRecord,
-      startScan, logScan, saveReportDraft, finalizeReport, uploadReferral, markBillPaid, scheduleEquipmentService,
-      markNotificationRead, logAssistantAction,
+      billing, equipment, audit, notifications, doctorReferrals, bookAppointment, cancelAppointment, updateRecord,
+      startScan, logScan, acknowledgeReferral, saveReportDraft, finalizeReport, uploadReferral, createDoctorReferral,
+      markBillPaid, scheduleEquipmentService, markNotificationRead, logAssistantAction,
     ]
   );
 

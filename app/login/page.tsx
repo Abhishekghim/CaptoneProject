@@ -3,7 +3,7 @@
 import React, { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Activity, LogIn } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/frontend/lib/supabase/client";
 
 export default function LoginPage() {
   return (
@@ -20,7 +20,11 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    searchParams.get("reason") === "deactivated"
+      ? "This account has been deactivated. Contact an administrator."
+      : null
+  );
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -42,6 +46,10 @@ function LoginForm() {
           p_username: trimmed,
         });
         if (rpcError || !resolvedEmail) {
+          // Logged under the typed identifier, not a resolved email — there
+          // isn't one yet, and this still lets a real account being brute-
+          // forced by username show up in the admin's security alerts.
+          await supabase.rpc("log_failed_login", { p_email: trimmed, p_detail: "unknown username" });
           setError(GENERIC_ERROR);
           return;
         }
@@ -50,6 +58,9 @@ function LoginForm() {
 
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) {
+        // NFR10 — recorded via a security-definer RPC since there's no
+        // session yet to write through normal RLS-gated tables.
+        await supabase.rpc("log_failed_login", { p_email: email, p_detail: "invalid credentials" });
         setError(GENERIC_ERROR);
         return;
       }
@@ -151,6 +162,12 @@ function LoginForm() {
             New patient?{" "}
             <a href="/signup" className="font-semibold text-medical hover:underline">
               Create an account
+            </a>
+          </p>
+          <p className="mt-2 text-center text-sm text-slate-500">
+            Referring doctor without an account?{" "}
+            <a href="/request-doctor-access" className="font-semibold text-medical hover:underline">
+              Request access
             </a>
           </p>
         </div>

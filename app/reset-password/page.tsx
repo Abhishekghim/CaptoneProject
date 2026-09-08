@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Activity, KeyRound } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/frontend/lib/supabase/client";
 
 // Landing page for the link sent by supabase.auth.resetPasswordForEmail()
 // (see app/forgot-password/page.tsx). The recovery token lives in the URL;

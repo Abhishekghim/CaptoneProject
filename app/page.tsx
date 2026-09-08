@@ -29,9 +29,9 @@ import {
   Waves,
   X,
 } from "lucide-react";
-import AssistantWidget from "@/components/shared/AssistantWidget";
-import { PUBLIC_ASSISTANT_SUMMARY } from "@/lib/assistant/scope";
-import { QUICK_ACTIONS } from "@/lib/assistant/prompts";
+import AssistantWidget from "@/frontend/components/shared/AssistantWidget";
+import { PUBLIC_ASSISTANT_SUMMARY } from "@/frontend/lib/assistant/scope";
+import { QUICK_ACTIONS } from "@/backend/lib/assistant/prompts";
 
 const NAV_LINKS = [
   { label: "Home", href: "#home" },
@@ -684,6 +684,11 @@ export default function MarketingHomePage() {
                 <li>
                   <a href="/privacy" className="hover:text-medical focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-medical">
                     Privacy policy
+                  </a>
+                </li>
+                <li>
+                  <a href="/terms" className="hover:text-medical focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-medical">
+                    Terms of service
                   </a>
                 </li>
               </ul>

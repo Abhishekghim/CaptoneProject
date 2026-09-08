@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Activity, UserPlus } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/frontend/lib/supabase/client";
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,24}$/;
 
@@ -21,6 +21,7 @@ export default function SignupPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [consent, setConsent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -35,6 +36,10 @@ export default function SignupPage() {
       setError("Username must be 3-24 characters: letters, numbers, and underscores only.");
       return;
     }
+    if (!consent) {
+      setError("Please confirm you consent to the collection and storage of your health data to continue.");
+      return;
+    }
 
     setSubmitting(true);
 
@@ -42,7 +47,7 @@ export default function SignupPage() {
       const supabase = createClient();
 
       // Pre-check for a clean inline error. The database also enforces this
-      // (a case-insensitive unique index — see database/002_usernames.sql),
+      // (a case-insensitive unique index — see backend/database/002_usernames.sql),
       // so a race between two people signing up with the same username at
       // the same instant still can't create a duplicate; it would just
       // surface as a less friendly error from signUp() below instead.
@@ -59,7 +64,7 @@ export default function SignupPage() {
       }
 
       // full_name and username are passed as auth user metadata; the
-      // `handle_new_user` trigger in database/002_usernames.sql reads them
+      // `handle_new_user` trigger in backend/database/002_usernames.sql reads them
       // when it creates the matching `profiles` row. That trigger is what
       // actually inserts the profile (as a security-definer function,
       // bypassing RLS) and it hardcodes role to 'patient' via
@@ -69,14 +74,18 @@ export default function SignupPage() {
       //
       // We intentionally do NOT also insert into `profiles` from this
       // page: there is no RLS policy letting a newly authenticated user
-      // insert their own profile row (see database/schema.sql — only the
+      // insert their own profile row (see backend/database/schema.sql — only the
       // trigger and admins can write to `profiles`), so a client-side
       // insert here would just fail. That's correct: it means role
       // assignment can't be forged by tampering with a client request.
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: fullName, username: trimmedUsername } },
+        // `consent` flows into handle_new_user (backend/database/007_consent_deletion_security.sql),
+        // which stamps profiles.consent_given_at at creation time — capturing
+        // it here rather than via a later client update means it's recorded
+        // even when email confirmation delays the first real session.
+        options: { data: { full_name: fullName, username: trimmedUsername, consent: true } },
       });
 
       if (signUpError) {
@@ -183,6 +192,22 @@ export default function SignupPage() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
+
+            <label className="flex items-start gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-medical focus:ring-medical"
+              />
+              <span>
+                I consent to Capital Radiology collecting and storing my health information to provide MRI booking,
+                imaging, and reporting services, per the{" "}
+                <a href="/privacy" target="_blank" className="font-semibold text-medical hover:underline">Privacy Policy</a>{" "}
+                and{" "}
+                <a href="/terms" target="_blank" className="font-semibold text-medical hover:underline">Terms of Service</a>.
+              </span>
+            </label>
 
             {error && (
               <p role="alert" className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">

@@ -1,12 +1,13 @@
 "use client";
 
 import React from "react";
-import PatientDashboard from "@/components/patient/PatientDashboard";
-import TechnicianPortal from "@/components/technician/TechnicianPortal";
-import RadiologistWorkspace from "@/components/radiologist/RadiologistWorkspace";
-import AdminDashboard from "@/components/admin/AdminDashboard";
-import ReferringDoctorPortal from "@/components/referring-doctor/ReferringDoctorPortal";
-import { useStore } from "@/lib/store";
+import PatientDashboard from "@/frontend/components/patient/PatientDashboard";
+import TechnicianPortal from "@/frontend/components/technician/TechnicianPortal";
+import RadiologistWorkspace from "@/frontend/components/radiologist/RadiologistWorkspace";
+import AdminDashboard from "@/frontend/components/admin/AdminDashboard";
+import ReferringDoctorPortal from "@/frontend/components/referring-doctor/ReferringDoctorPortal";
+import SuperAdminDashboard from "@/frontend/components/super-admin/SuperAdminDashboard";
+import { useStore } from "@/frontend/lib/store";
 
 export default function Home() {
   const { effectiveRole } = useStore();
@@ -18,6 +19,7 @@ export default function Home() {
       {effectiveRole === "radiologist" && <RadiologistWorkspace />}
       {effectiveRole === "admin" && <AdminDashboard />}
       {effectiveRole === "referring_doctor" && <ReferringDoctorPortal />}
+      {effectiveRole === "super_admin" && <SuperAdminDashboard />}
     </>
   );
 }

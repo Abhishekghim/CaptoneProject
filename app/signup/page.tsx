@@ -21,6 +21,7 @@ export default function SignupPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [consent, setConsent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -33,6 +34,10 @@ export default function SignupPage() {
     const trimmedUsername = username.trim();
     if (!USERNAME_PATTERN.test(trimmedUsername)) {
       setError("Username must be 3-24 characters: letters, numbers, and underscores only.");
+      return;
+    }
+    if (!consent) {
+      setError("Please confirm you consent to the collection and storage of your health data to continue.");
       return;
     }
 
@@ -76,7 +81,11 @@ export default function SignupPage() {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: fullName, username: trimmedUsername } },
+        // `consent` flows into handle_new_user (database/007_consent_deletion_security.sql),
+        // which stamps profiles.consent_given_at at creation time — capturing
+        // it here rather than via a later client update means it's recorded
+        // even when email confirmation delays the first real session.
+        options: { data: { full_name: fullName, username: trimmedUsername, consent: true } },
       });
 
       if (signUpError) {
@@ -183,6 +192,22 @@ export default function SignupPage() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
+
+            <label className="flex items-start gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-medical focus:ring-medical"
+              />
+              <span>
+                I consent to Capital Radiology collecting and storing my health information to provide MRI booking,
+                imaging, and reporting services, per the{" "}
+                <a href="/privacy" target="_blank" className="font-semibold text-medical hover:underline">Privacy Policy</a>{" "}
+                and{" "}
+                <a href="/terms" target="_blank" className="font-semibold text-medical hover:underline">Terms of Service</a>.
+              </span>
+            </label>
 
             {error && (
               <p role="alert" className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">

@@ -686,6 +686,11 @@ export default function MarketingHomePage() {
                     Privacy policy
                   </a>
                 </li>
+                <li>
+                  <a href="/terms" className="hover:text-medical focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-medical">
+                    Terms of service
+                  </a>
+                </li>
               </ul>
             </div>
           </div>

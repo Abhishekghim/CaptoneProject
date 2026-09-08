@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Contrast, Move, RotateCcw, Sun, ZoomIn, ZoomOut } from "lucide-react";
+import { Contrast, MapPin, Move, RotateCcw, Sun, X, ZoomIn, ZoomOut } from "lucide-react";
+import type { ImageAnnotation } from "@/lib/types";
 
 /**
  * Local Canvas "DICOM viewer" simulator.
@@ -121,9 +122,15 @@ export interface DicomViewerProps {
   scanId: string;
   bodyPart: string;
   meta?: { protocol?: string; machine?: string; performedAt?: string };
+  annotations?: ImageAnnotation[];
+  onAddAnnotation?: (x: number, y: number, note: string) => void;
+  onRemoveAnnotation?: (id: string) => void;
+  canAnnotate?: boolean;
 }
 
-export default function DicomViewer({ scanId, bodyPart, meta }: DicomViewerProps) {
+export default function DicomViewer({
+  scanId, bodyPart, meta, annotations = [], onAddAnnotation, onRemoveAnnotation, canAnnotate = false,
+}: DicomViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sourceRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -133,6 +140,35 @@ export default function DicomViewer({ scanId, bodyPart, meta }: DicomViewerProps
   const [contrast, setContrast] = useState(0); // -100 … 100
   const [invert, setInvert] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
+
+  const [annotateMode, setAnnotateMode] = useState(false);
+  const [pendingPin, setPendingPin] = useState<{ x: number; y: number } | null>(null);
+  const [pendingNote, setPendingNote] = useState("");
+
+  const toImagePoint = useCallback(
+    (clientX: number, clientY: number) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return { x: 0, y: 0 };
+      const rect = canvas.getBoundingClientRect();
+      const scaleFactor = SIZE / rect.width;
+      const canvasPxX = (clientX - rect.left) * scaleFactor;
+      const canvasPxY = (clientY - rect.top) * scaleFactor;
+      return {
+        x: (canvasPxX - SIZE / 2 - pan.x) / zoom + SIZE / 2,
+        y: (canvasPxY - SIZE / 2 - pan.y) / zoom + SIZE / 2,
+      };
+    },
+    [pan, zoom]
+  );
+
+  const toScreenPercent = useCallback(
+    (x: number, y: number) => {
+      const canvasPxX = SIZE / 2 + pan.x + (x - SIZE / 2) * zoom;
+      const canvasPxY = SIZE / 2 + pan.y + (y - SIZE / 2) * zoom;
+      return { leftPct: (canvasPxX / SIZE) * 100, topPct: (canvasPxY / SIZE) * 100 };
+    },
+    [pan, zoom]
+  );
 
   // Build the source slice once per scan
   const sourceKey = useMemo(() => `${scanId}:${bodyPart}`, [scanId, bodyPart]);
@@ -148,6 +184,8 @@ export default function DicomViewer({ scanId, bodyPart, meta }: DicomViewerProps
     setBrightness(0);
     setContrast(0);
     setInvert(false);
+    setAnnotateMode(false);
+    setPendingPin(null);
   }, [sourceKey, bodyPart]);
 
   // Render pipeline: draw source with transform, then apply window/level per-pixel
@@ -186,8 +224,14 @@ export default function DicomViewer({ scanId, bodyPart, meta }: DicomViewerProps
     return () => cancelAnimationFrame(id);
   }, [render]);
 
-  // Pointer pan
+  // Pointer pan (or, in annotate mode, drop a pin instead of panning)
   function onPointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (annotateMode) {
+      const point = toImagePoint(e.clientX, e.clientY);
+      setPendingPin(point);
+      setPendingNote("");
+      return;
+    }
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     dragRef.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y };
   }
@@ -228,7 +272,9 @@ export default function DicomViewer({ scanId, bodyPart, meta }: DicomViewerProps
           height={SIZE}
           role="img"
           aria-label={`Simulated ${bodyPart} MRI slice. Drag to pan, scroll to zoom.`}
-          className="mx-auto block h-auto w-full max-w-[512px] cursor-grab touch-none select-none active:cursor-grabbing"
+          className={`mx-auto block h-auto w-full max-w-[512px] touch-none select-none ${
+            annotateMode ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing"
+          }`}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -239,8 +285,61 @@ export default function DicomViewer({ scanId, bodyPart, meta }: DicomViewerProps
           Z {zoom.toFixed(2)}x · W {(100 + contrast).toFixed(0)} L {(brightness + 100).toFixed(0)}
         </span>
         <span className="pointer-events-none absolute bottom-2 right-3 inline-flex items-center gap-1 font-mono text-[11px] text-slate-400">
-          <Move size={11} aria-hidden /> drag to pan
+          <Move size={11} aria-hidden /> {annotateMode ? "click to pin a finding" : "drag to pan"}
         </span>
+
+        {annotations.map((a) => {
+          const { leftPct, topPct } = toScreenPercent(a.x, a.y);
+          if (leftPct < 0 || leftPct > 100 || topPct < 0 || topPct > 100) return null;
+          return (
+            <div
+              key={a.id}
+              className="group absolute -translate-x-1/2 -translate-y-full"
+              style={{ left: `${leftPct}%`, top: `${topPct}%` }}
+            >
+              <MapPin size={20} className="fill-amber-400 text-amber-600 drop-shadow" aria-hidden />
+              <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-1 w-max max-w-[200px] -translate-x-1/2 rounded-md bg-navy px-2 py-1 text-[11px] text-white opacity-0 shadow-lg transition group-hover:opacity-100">
+                {a.note}
+                {onRemoveAnnotation && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveAnnotation(a.id)}
+                    className="pointer-events-auto ml-1.5 inline-flex align-middle text-slate-300 hover:text-white"
+                    aria-label="Remove annotation"
+                  >
+                    <X size={11} aria-hidden />
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {pendingPin && (
+          <form
+            className="absolute z-20 flex -translate-x-1/2 items-center gap-1 rounded-md bg-white p-1.5 shadow-lg"
+            style={{ left: `${toScreenPercent(pendingPin.x, pendingPin.y).leftPct}%`, top: `${toScreenPercent(pendingPin.x, pendingPin.y).topPct}%` }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!pendingNote.trim() || !onAddAnnotation) return;
+              onAddAnnotation(pendingPin.x, pendingPin.y, pendingNote.trim());
+              setPendingPin(null);
+              setPendingNote("");
+            }}
+          >
+            <input
+              autoFocus
+              value={pendingNote}
+              onChange={(e) => setPendingNote(e.target.value)}
+              placeholder="Finding note…"
+              className="w-40 rounded border border-slate-300 px-2 py-1 text-xs text-navy"
+            />
+            <button type="submit" className="rounded bg-medical px-2 py-1 text-xs font-semibold text-white">Pin</button>
+            <button type="button" onClick={() => setPendingPin(null)} className="rounded p-1 text-slate-400 hover:text-slate-600" aria-label="Cancel">
+              <X size={13} aria-hidden />
+            </button>
+          </form>
+        )}
       </div>
 
       {/* Controls */}
@@ -258,6 +357,19 @@ export default function DicomViewer({ scanId, bodyPart, meta }: DicomViewerProps
           <button type="button" onClick={reset} className="rounded-lg bg-slate-800 p-2 text-slate-200 transition hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-medical" aria-label="Reset view">
             <RotateCcw size={16} aria-hidden />
           </button>
+          {canAnnotate && (
+            <button
+              type="button"
+              onClick={() => { setAnnotateMode((v) => !v); setPendingPin(null); }}
+              aria-pressed={annotateMode}
+              className={`rounded-lg p-2 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-medical ${
+                annotateMode ? "bg-amber-500 text-navy" : "bg-slate-800 text-slate-200 hover:bg-slate-700"
+              }`}
+              aria-label="Toggle annotation mode"
+            >
+              <MapPin size={16} aria-hidden />
+            </button>
+          )}
         </div>
 
         <div className="space-y-2">

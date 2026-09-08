@@ -7,7 +7,9 @@ import {
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { PROTOCOLS } from "@/lib/seed";
+import { uploadToBucket } from "@/lib/storage";
 import { EmptyState, SectionTitle, StatusChip } from "@/components/shared/ui";
+import StaffMessagingPanel from "@/components/shared/StaffMessagingPanel";
 
 export default function TechnicianPortal() {
   const store = useStore();
@@ -49,6 +51,14 @@ export default function TechnicianPortal() {
                 : [];
               if (record?.contraindications.other) flags.push(record.contraindications.other);
 
+              const referringLabel = a.referring_doctor_id
+                ? store.profiles.find((p) => p.id === a.referring_doctor_id)?.full_name ?? "Unknown doctor"
+                : a.referring_doctor_name;
+              const hasReferralToCheck = Boolean(a.referral_url || a.referring_doctor_name);
+              const assignedTech = a.assigned_technician_id
+                ? store.profiles.find((p) => p.id === a.assigned_technician_id)
+                : null;
+
               return (
                 <li key={a.id} className="rounded-lg border border-slate-200 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -57,11 +67,47 @@ export default function TechnicianPortal() {
                         {a.time_slot} — {patient?.full_name ?? "Unknown patient"} · {a.body_part}
                       </p>
                       <p className="text-xs text-slate-500">{a.location}</p>
+                      {assignedTech && (
+                        <p className="mt-1 text-xs font-semibold text-medical">
+                          {assignedTech.id === store.currentUser.id ? "Assigned to you" : `Assigned to ${assignedTech.full_name}`}
+                        </p>
+                      )}
+                      {referringLabel && (
+                        <p className="mt-1 text-xs text-slate-500">
+                          Referred by {referringLabel}
+                          {a.referring_doctor_practice && ` · ${a.referring_doctor_practice}`}
+                          {!a.referring_doctor_id && (
+                            <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                              No account yet
+                            </span>
+                          )}
+                        </p>
+                      )}
                       {flags.length > 0 && (
                         <p className="mt-1.5 inline-flex flex-wrap items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">
                           <AlertTriangle size={13} aria-hidden />
                           Safety flags: {flags.join(", ")}
                         </p>
+                      )}
+                      {hasReferralToCheck && (
+                        a.referral_reviewed ? (
+                          <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">
+                            <CheckCircle2 size={13} aria-hidden /> Referral reviewed
+                          </p>
+                        ) : (
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">
+                              <AlertTriangle size={13} aria-hidden /> Referral needs review
+                            </span>
+                            <button
+                              type="button"
+                              className="btn-ghost text-xs"
+                              onClick={() => store.acknowledgeReferral(a.id)}
+                            >
+                              <CheckCircle2 size={13} aria-hidden /> Mark reviewed
+                            </button>
+                          </div>
+                        )
                       )}
                     </div>
                     <div className="flex items-center gap-3">
@@ -107,12 +153,15 @@ export default function TechnicianPortal() {
           />
         )}
       </section>
+
+      <StaffMessagingPanel />
     </div>
   );
 }
 
 function ScanLoggerForm({ appointmentId, onLogged }: { appointmentId: string; onLogged: () => void }) {
   const store = useStore();
+  const me = store.currentUser;
   const apt = store.appointments.find((a) => a.id === appointmentId);
   const patient = apt && store.profiles.find((p) => p.id === apt.patient_id);
   const machines = store.equipment.filter((e) => e.status === "operational");
@@ -120,23 +169,33 @@ function ScanLoggerForm({ appointmentId, onLogged }: { appointmentId: string; on
   const [protocol, setProtocol] = useState(PROTOCOLS[0]);
   const [duration, setDuration] = useState(30);
   const [machine, setMachine] = useState(machines[0]?.machine_name ?? "");
-  const [dicomFile, setDicomFile] = useState<string | null>(null);
+  const [dicomFile, setDicomFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (!apt) return <EmptyState message="Appointment not found" />;
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!apt) return;
     if (!dicomFile) return; // button disabled anyway; belt and braces
+    setUploading(true);
+    setUploadError(null);
+    const result = await uploadToBucket("dicom", dicomFile, me.id);
+    setUploading(false);
+    if (!result.ok) {
+      setUploadError(result.error);
+      return;
+    }
     store.logScan({
       appointment_id: apt.id,
       body_part: apt.body_part,
       protocol,
       scan_duration: duration,
       machine_name: machine,
-      dicomFileName: dicomFile,
+      dicomFileName: result.path,
     });
     setDone(true);
     if (fileRef.current) fileRef.current.value = "";
@@ -193,29 +252,33 @@ function ScanLoggerForm({ appointmentId, onLogged }: { appointmentId: string; on
       </div>
 
       <div>
-        <label htmlFor="sl-dicom" className="label">DICOM series upload (simulated)</label>
+        <label htmlFor="sl-dicom" className="label">DICOM series upload</label>
         <input
           id="sl-dicom" ref={fileRef} type="file"
-          onChange={(e) => setDicomFile(e.target.files?.[0]?.name ?? `${apt.id}-series.dcm`)}
+          onChange={(e) => setDicomFile(e.target.files?.[0] ?? null)}
           className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-medical-light file:px-4 file:py-2 file:text-sm file:font-semibold file:text-medical hover:file:bg-sky-100"
         />
         <button
           type="button"
-          onClick={() => setDicomFile(`${apt.id}-series.dcm`)}
+          onClick={() => {
+            const blob = new Blob([`Simulated DICOM series for appointment ${apt.id}`], { type: "application/dicom" });
+            setDicomFile(new File([blob], `${apt.id}-series.dcm`, { type: "application/dicom" }));
+          }}
           className="mt-2 text-xs font-semibold text-medical underline-offset-2 hover:underline"
         >
           Or generate a simulated series from the scanner
         </button>
         {dicomFile && (
           <p className="mt-1 text-xs text-emerald-700">
-            <HardDriveUpload size={12} className="inline" aria-hidden /> {dicomFile} ready — will be linked to this appointment
+            <HardDriveUpload size={12} className="inline" aria-hidden /> {dicomFile.name} ready — will upload to the secure DICOM bucket
           </p>
         )}
+        {uploadError && <p className="mt-1 text-xs font-semibold text-rose-700">{uploadError}</p>}
       </div>
 
       <div className="md:col-span-2">
-        <button type="submit" className="btn-primary" disabled={!dicomFile || !machine}>
-          <ScanLine size={16} aria-hidden /> Log scan & release to radiology
+        <button type="submit" className="btn-primary" disabled={!dicomFile || !machine || uploading}>
+          <ScanLine size={16} aria-hidden /> {uploading ? "Uploading…" : "Log scan & release to radiology"}
         </button>
       </div>
     </form>

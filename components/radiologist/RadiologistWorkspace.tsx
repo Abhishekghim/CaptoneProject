@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { EmptyState, SectionTitle, StatusChip } from "@/components/shared/ui";
+import StaffMessagingPanel from "@/components/shared/StaffMessagingPanel";
 import DicomViewer from "./DicomViewer";
 
 const TEMPLATES: Record<string, { findings: string; impression: string }> = {
@@ -70,6 +71,9 @@ export default function RadiologistWorkspace() {
               const patient = apt && store.profiles.find((p) => p.id === apt.patient_id);
               const draft = store.reports.find((r) => r.scan_id === s.id);
               const active = selectedScanId === s.id;
+              const assignedRad = apt?.assigned_radiologist_id
+                ? store.profiles.find((p) => p.id === apt.assigned_radiologist_id)
+                : null;
               return (
                 <li key={s.id}>
                   <button
@@ -84,6 +88,11 @@ export default function RadiologistWorkspace() {
                     <p className="text-xs text-slate-500">
                       {s.performed_at ? format(parseISO(s.performed_at), "d MMM, h:mm a") : "time n/a"} · {s.machine_name}
                     </p>
+                    {assignedRad && (
+                      <p className="mt-1 text-[11px] font-semibold text-medical">
+                        {assignedRad.id === store.currentUser.id ? "Assigned to you" : `Assigned to ${assignedRad.full_name}`}
+                      </p>
+                    )}
                     <div className="mt-1.5">
                       {draft ? <StatusChip status="draft" /> : <span className="chip bg-slate-100 text-slate-600">not started</span>}
                     </div>
@@ -111,6 +120,10 @@ export default function RadiologistWorkspace() {
                 machine: selectedScan.machine_name ?? undefined,
                 performedAt: selectedScan.performed_at ?? undefined,
               }}
+              canAnnotate
+              annotations={store.annotations.filter((a) => a.scan_id === selectedScan.id)}
+              onAddAnnotation={(x, y, note) => store.addAnnotation(selectedScan.id, x, y, note)}
+              onRemoveAnnotation={store.removeAnnotation}
             />
           </section>
 
@@ -120,6 +133,8 @@ export default function RadiologistWorkspace() {
           </section>
         </div>
       )}
+
+      <StaffMessagingPanel />
     </div>
   );
 }

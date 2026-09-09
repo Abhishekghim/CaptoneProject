@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Activity, Mail } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/frontend/lib/supabase/client";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");

@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Activity, UserPlus } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/frontend/lib/supabase/client";
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,24}$/;
 
@@ -47,7 +47,7 @@ export default function SignupPage() {
       const supabase = createClient();
 
       // Pre-check for a clean inline error. The database also enforces this
-      // (a case-insensitive unique index — see database/002_usernames.sql),
+      // (a case-insensitive unique index — see backend/database/002_usernames.sql),
       // so a race between two people signing up with the same username at
       // the same instant still can't create a duplicate; it would just
       // surface as a less friendly error from signUp() below instead.
@@ -64,7 +64,7 @@ export default function SignupPage() {
       }
 
       // full_name and username are passed as auth user metadata; the
-      // `handle_new_user` trigger in database/002_usernames.sql reads them
+      // `handle_new_user` trigger in backend/database/002_usernames.sql reads them
       // when it creates the matching `profiles` row. That trigger is what
       // actually inserts the profile (as a security-definer function,
       // bypassing RLS) and it hardcodes role to 'patient' via
@@ -74,14 +74,14 @@ export default function SignupPage() {
       //
       // We intentionally do NOT also insert into `profiles` from this
       // page: there is no RLS policy letting a newly authenticated user
-      // insert their own profile row (see database/schema.sql — only the
+      // insert their own profile row (see backend/database/schema.sql — only the
       // trigger and admins can write to `profiles`), so a client-side
       // insert here would just fail. That's correct: it means role
       // assignment can't be forged by tampering with a client request.
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
-        // `consent` flows into handle_new_user (database/007_consent_deletion_security.sql),
+        // `consent` flows into handle_new_user (backend/database/007_consent_deletion_security.sql),
         // which stamps profiles.consent_given_at at creation time — capturing
         // it here rather than via a later client update means it's recorded
         // even when email confirmation delays the first real session.

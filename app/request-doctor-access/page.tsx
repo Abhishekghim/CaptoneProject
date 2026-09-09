@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Activity, Send, Stethoscope } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/frontend/lib/supabase/client";
 
 const AHPRA_PATTERN = /^[A-Za-z]{3}[0-9]{10}$/;
 
@@ -39,7 +39,7 @@ export default function RequestDoctorAccessPage() {
       const supabase = createClient();
 
       // Anonymous insert, allowed by the "doctor_requests_public_insert" RLS
-      // policy (database/004_referring_doctor_requests.sql) — it only lets a
+      // policy (backend/database/004_referring_doctor_requests.sql) — it only lets a
       // caller create a fresh 'pending' row with no review fields, so this
       // can't be used to forge an approval. A duplicate submission for the
       // same email while one is still pending is rejected by a unique index,
@@ -55,7 +55,7 @@ export default function RequestDoctorAccessPage() {
 
       if (insertError) {
         // Two distinct DB-side guards can reject this insert (see
-        // database/004_referring_doctor_requests.sql): a unique index blocks
+        // backend/database/004_referring_doctor_requests.sql): a unique index blocks
         // a second pending request for the same email (raw Postgres error
         // code 23505), and a trigger blocks requesting access for an email
         // that already has any account, with its own friendly message.

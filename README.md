@@ -29,7 +29,7 @@ end-to-end in the browser immediately:
 
 ## Connecting Supabase (production mode)
 
-1. Create a Supabase project and run `database/schema.sql` in the SQL Editor.
+1. Create a Supabase project and run `backend/database/schema.sql` in the SQL Editor.
    It creates all enums, the 8 core tables, indexes, triggers (auto profile
    creation, `updated_at`, automatic audit trail), Row-Level Security policies
    for all four roles, and three private storage buckets
@@ -44,14 +44,14 @@ end-to-end in the browser immediately:
 ## Structure
 
 ```
-database/schema.sql          Complete DDL: enums, tables, FKs, indexes, RLS, triggers, seed
+backend/database/schema.sql          Complete DDL: enums, tables, FKs, indexes, RLS, triggers, seed
 app/                         App Router entry (layout, page, global styles)
 lib/                         types, seed data, global store (auth simulation + actions), supabase client
-components/shared/           Shell (sidebar + role switcher), UI primitives
-components/patient/          Booking, health profile, results & billing
-components/technician/       Queue + scan logger
-components/radiologist/      Canvas DICOM viewer + report editor
-components/admin/            KPIs, billing, equipment, audit log
+frontend/components/shared/           Shell (sidebar + role switcher), UI primitives
+frontend/components/patient/          Booking, health profile, results & billing
+frontend/components/technician/       Queue + scan logger
+frontend/components/radiologist/      Canvas DICOM viewer + report editor
+frontend/components/admin/            KPIs, billing, equipment, audit log
 ```
 
 ## Requirement coverage

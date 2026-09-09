@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildSystemPrompt } from "@/lib/assistant/prompts";
-import type { AssistantChatMessage, AssistantRequestBody, AssistantRole } from "@/lib/assistant/types";
+import { buildSystemPrompt } from "@/backend/lib/assistant/prompts";
+import type { AssistantChatMessage, AssistantRequestBody, AssistantRole } from "@/shared/assistant/types";
 
 // TEMPORARY security note: this route enforces shape/size limits and rate
 // limiting, and — most importantly — only ever sees the pre-filtered
-// `contextSummary` string the client built via lib/assistant/scope.ts, never
+// `contextSummary` string the client built via frontend/lib/assistant/scope.ts, never
 // raw store data. But it has no way to verify `role`/`userId` are telling
 // the truth, because this app has no real server-side session yet (see
 // lib/auth/SessionContext.tsx — local-only auth, nothing sent to the

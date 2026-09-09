@@ -29,9 +29,9 @@ import {
   Waves,
   X,
 } from "lucide-react";
-import AssistantWidget from "@/components/shared/AssistantWidget";
-import { PUBLIC_ASSISTANT_SUMMARY } from "@/lib/assistant/scope";
-import { QUICK_ACTIONS } from "@/lib/assistant/prompts";
+import AssistantWidget from "@/frontend/components/shared/AssistantWidget";
+import { PUBLIC_ASSISTANT_SUMMARY } from "@/frontend/lib/assistant/scope";
+import { QUICK_ACTIONS } from "@/backend/lib/assistant/prompts";
 
 const NAV_LINKS = [
   { label: "Home", href: "#home" },

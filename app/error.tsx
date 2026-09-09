@@ -24,7 +24,7 @@ export default function AppError({ error, reset }: { error: Error & { digest?: s
               <span className="font-mono">.env.local</span>, fill in your Supabase project&apos;s{" "}
               <span className="font-mono">NEXT_PUBLIC_SUPABASE_URL</span> and{" "}
               <span className="font-mono">NEXT_PUBLIC_SUPABASE_ANON_KEY</span>, run{" "}
-              <span className="font-mono">database/schema.sql</span> against that project, then restart the dev
+              <span className="font-mono">backend/database/schema.sql</span> against that project, then restart the dev
               server.
             </p>
           </>

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/adminAuth";
+import { requireSuperAdmin } from "@/backend/lib/adminAuth";
 
 // Rejecting never touches Auth — no account was ever created for a pending
 // request, so this only needs to update the queue row (RLS on
-// referring_doctor_requests already restricts that update to admins; this
-// route additionally requires a reason so there's always a record of why).
+// referring_doctor_requests restricts that update to super_admin — see
+// backend/database/008_super_admin.sql; this route additionally requires a reason
+// so there's always a record of why).
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireAdmin();
+  const auth = await requireSuperAdmin();
   if ("error" in auth) return auth.error;
   const { supabase, admin } = auth;
 

@@ -3,7 +3,7 @@
 import React, { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Activity, LogIn } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/frontend/lib/supabase/client";
 
 export default function LoginPage() {
   return (
@@ -20,7 +20,11 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    searchParams.get("reason") === "deactivated"
+      ? "This account has been deactivated. Contact an administrator."
+      : null
+  );
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {

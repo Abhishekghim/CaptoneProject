@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/adminAuth";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { requireSuperAdmin } from "@/backend/lib/adminAuth";
+import { createAdminClient } from "@/backend/lib/supabase/admin";
 
 // Approving a referring-doctor request is the ONLY code path that ever
 // creates a referring_doctor auth account. Internal roles (technician /
@@ -11,7 +11,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // request that the doctor submitted themselves (app/request-doctor-access)
 // and this route is what turns an approved request into a real account.
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireAdmin();
+  const auth = await requireSuperAdmin();
   if ("error" in auth) return auth.error;
   const { supabase, admin } = auth;
 
@@ -32,7 +32,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   }
 
   // Service-role call: creates the auth.users row and emails the doctor an
-  // invite link to set their password. `handle_new_user` (database/schema.sql)
+  // invite link to set their password. `handle_new_user` (backend/database/schema.sql)
   // reads `role` out of this metadata and sets profiles.role accordingly —
   // the same trigger every other signup path already goes through, so this
   // is not a second, parallel way of granting roles.

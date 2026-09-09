@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/adminAuth";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/backend/lib/adminAuth";
+import { createAdminClient } from "@/backend/lib/supabase/admin";
 
 // NFR36 — patients can request deletion from their dashboard (a plain
 // update to profiles.deletion_requested_at, allowed by the existing
@@ -27,7 +27,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: "This account has no pending deletion request." }, { status: 409 });
   }
 
-  // auth.users -> profiles is `on delete cascade` (database/schema.sql),
+  // auth.users -> profiles is `on delete cascade` (backend/database/schema.sql),
   // which cascades further into patient_medical_records, appointments, etc.
   // — deleting the auth user is the single real removal step.
   const adminClient = createAdminClient();

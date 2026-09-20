@@ -48,6 +48,7 @@ Capital Radiology offers Brain, Spine, Joint, Abdomen and Pelvis MRI scans, plus
 - Parramatta Imaging — Suite 2, 12 Church Street, Parramatta NSW 2150 — Mon-Fri 7:30am-6:00pm, Sat 8:00am-12:00pm
 - Chatswood Centre — Level 1, 45 Victoria Avenue, Chatswood NSW 2067 — Mon-Fri 8:00am-6:00pm, Sat closed
 Booking flow: create a free account, book an MRI online, attend the scan (usually 20-45 minutes), a radiologist reads and signs the report, results appear in the patient portal within about 24-48 hours.
+Referrals: a referral is NOT required to book — patients can self-refer and choose "None — self-referred" at booking. If a patient does have a referring doctor, they can select one already in the system, or name a doctor who isn't yet (attaching a copy of the referral so a technician can verify it before the scan). Never tell a visitor a referral is required to book with Capital Radiology — it isn't.
 MRI safety: patients must disclose pacemakers, defibrillators, cochlear implants, metal implants, surgical clips, shrapnel, or claustrophobia when booking.
 Contact: 1300 722 674, care@capitalradiology.com.au.
 `.trim();

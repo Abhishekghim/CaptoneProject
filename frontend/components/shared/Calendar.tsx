@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isBefore,
   isSameDay, isSameMonth, startOfMonth, startOfToday, startOfWeek, subMonths,
@@ -28,6 +28,16 @@ export function AppointmentCalendar({
 }) {
   const selected = parseDateOnly(value);
   const [cursor, setCursor] = useState(() => startOfMonth(selected));
+
+  // Keep the displayed month in sync with the selected date — otherwise
+  // clicking a grayed-out day from the previous/next month (visible at the
+  // edges of the grid) picks that date but leaves the header showing the
+  // wrong month, and any external change to `value` wouldn't re-center the
+  // calendar either.
+  useEffect(() => {
+    setCursor((prev) => (isSameMonth(prev, selected) ? prev : startOfMonth(selected)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
 
   const gridStart = startOfWeek(startOfMonth(cursor));
   const gridEnd = endOfWeek(endOfMonth(cursor));

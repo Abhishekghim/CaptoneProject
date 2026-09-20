@@ -1,16 +1,47 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { CheckCircle2, FileSignature, FileUp, Paperclip, Send, UserPlus, Users } from "lucide-react";
 import { useStore } from "@/frontend/lib/store";
 import { BODY_PARTS } from "@/frontend/lib/seed";
 import { uploadToBucket } from "@/frontend/lib/storage";
+import { createClient } from "@/frontend/lib/supabase/client";
 import { EmptyState, SectionTitle, StatusChip } from "@/frontend/components/shared/ui";
+import DicomViewer from "@/frontend/components/radiologist/DicomViewer";
+import type { ImageAnnotation, MriScan } from "@/shared/types";
+
+// A referring_doctor gets a `referring_doctor_details` row only when they
+// came through the external request-then-approve queue (database/004) —
+// AHPRA number, practice name, all captured there. A doctor super_admin
+// creates directly via the Staff Accounts panel (database/008) never gets
+// one, which is exactly what marks them as "employed under Capital
+// Radiology" rather than an external GP/specialist. Scan images are only
+// released to the internal kind (database/009) — this hook mirrors that
+// same check client-side, purely to decide whether to render the viewer at
+// all (the real enforcement is the storage RLS policy, not this).
+function useIsInternalReferringDoctor(profileId: string): boolean | null {
+  const [isInternal, setIsInternal] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("referring_doctor_details")
+        .select("profile_id")
+        .eq("profile_id", profileId)
+        .maybeSingle();
+      if (!cancelled) setIsInternal(!data);
+    })();
+    return () => { cancelled = true; };
+  }, [profileId]);
+  return isInternal;
+}
 
 export default function ReferringDoctorPortal() {
   const store = useStore();
   const me = store.currentUser;
+  const isInternal = useIsInternalReferringDoctor(me.id);
 
   const myReferrals = store.appointments
     .filter((a) => a.referring_doctor_id === me.id)
@@ -120,6 +151,14 @@ export default function ReferringDoctorPortal() {
                         <span className="font-semibold text-navy">Impression:</span> {report.impression}
                       </p>
                       <p className="mt-1 text-xs text-slate-500">Signed: {report.e_signature}</p>
+                      {isInternal && scan && (
+                        <ScanImageToggle scan={scan} annotations={store.annotations.filter((ann) => ann.scan_id === scan.id)} />
+                      )}
+                      {isInternal === false && (
+                        <p className="mt-2 text-xs text-slate-400">
+                          Scan images aren&rsquo;t released to external referring doctors — your patient can share it with you directly if they choose to.
+                        </p>
+                      )}
                     </div>
                   )}
                   {!finalized && (
@@ -268,6 +307,30 @@ function ReferralUpload({ appointmentId }: { appointmentId: string }) {
       </button>
       {done && <span className="text-xs font-semibold text-emerald-700">Referral uploaded to secure storage.</span>}
       {error && <span className="text-xs font-semibold text-rose-700">{error}</span>}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+function ScanImageToggle({ scan, annotations }: { scan: MriScan; annotations: ImageAnnotation[] }) {
+  const [showImage, setShowImage] = useState(false);
+
+  return (
+    <div className="mt-2">
+      <button type="button" className="btn-ghost text-xs" onClick={() => setShowImage((v) => !v)}>
+        {showImage ? "Hide scan image" : "View scan image"}
+      </button>
+      {showImage && (
+        <div className="mt-2">
+          <DicomViewer
+            scanId={scan.id}
+            bodyPart={scan.body_part}
+            meta={{ protocol: scan.protocol, machine: scan.machine_name ?? undefined, performedAt: scan.performed_at ?? undefined }}
+            annotations={annotations}
+            canAnnotate={false}
+          />
+        </div>
+      )}
     </div>
   );
 }

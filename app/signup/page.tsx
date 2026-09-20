@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Activity, UserPlus } from "lucide-react";
 import { createClient } from "@/frontend/lib/supabase/client";
@@ -110,7 +111,7 @@ export default function SignupPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-sm">
-        <div className="mb-6 flex items-center justify-center gap-2.5">
+        <Link href="/" className="mb-6 flex items-center justify-center gap-2.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-medical">
           <div className="grid h-10 w-10 place-items-center rounded-lg bg-medical">
             <Activity size={22} className="text-white" aria-hidden />
           </div>
@@ -118,7 +119,7 @@ export default function SignupPage() {
             <p className="text-sm font-bold leading-tight text-navy">Capital Radiology</p>
             <p className="text-[11px] text-slate-500">Online MRI portal</p>
           </div>
-        </div>
+        </Link>
 
         <div className="card p-6 sm:p-7">
           <h1 className="text-lg font-bold text-navy">Create a patient account</h1>

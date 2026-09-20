@@ -11,10 +11,11 @@ import { BODY_PARTS, LOCATIONS, TIME_SLOTS } from "@/frontend/lib/seed";
 import { uploadToBucket } from "@/frontend/lib/storage";
 import { downloadReceiptPdf } from "@/frontend/lib/receiptPdf";
 import { createClient } from "@/frontend/lib/supabase/client";
-import type { Appointment, Contraindications } from "@/shared/types";
+import type { Appointment, Contraindications, MriScan, RadiologyReport } from "@/shared/types";
 import { AppointmentCalendar } from "@/frontend/components/shared/Calendar";
 import { MessageThreadView } from "@/frontend/components/shared/Messaging";
 import { EmptyState, SectionTitle, StatusChip } from "@/frontend/components/shared/ui";
+import DicomViewer from "@/frontend/components/radiologist/DicomViewer";
 
 const CONTRA_ITEMS: { key: keyof Omit<Contraindications, "other">; label: string; note: string }[] = [
   { key: "metal_implants", label: "Metal implants or fragments", note: "Screws, plates, clips, shrapnel" },
@@ -109,36 +110,7 @@ export default function PatientDashboard() {
           ) : (
             <ul className="space-y-4">
               {myFinalReports.map(({ report, scan, apt }) => (
-                <li key={report.id} className="rounded-lg border border-slate-200 p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="font-semibold text-navy">
-                        {scan.body_part} MRI — {format(parseISO(apt.date), "d MMM yyyy")}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {scan.protocol} · {scan.machine_name}
-                      </p>
-                    </div>
-                    <StatusChip status={report.status} />
-                  </div>
-                  <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
-                    <div>
-                      <dt className="label">Findings</dt>
-                      <dd className="whitespace-pre-wrap text-slate-700">{report.findings}</dd>
-                    </div>
-                    <div>
-                      <dt className="label">Impression</dt>
-                      <dd className="whitespace-pre-wrap text-slate-700">{report.impression}</dd>
-                    </div>
-                  </dl>
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
-                    <p className="text-xs text-slate-500">
-                      Signed: <span className="font-semibold text-navy">{report.e_signature}</span>
-                      {report.finalized_at && <> · {format(parseISO(report.finalized_at), "d MMM yyyy, h:mm a")}</>}
-                    </p>
-                    <DownloadDicomButton scanId={scan.id} bodyPart={scan.body_part} />
-                  </div>
-                </li>
+                <FinalizedReportRow key={report.id} report={report} scan={scan} apt={apt} />
               ))}
             </ul>
           )}
@@ -864,6 +836,69 @@ function HealthProfileForm({ existing }: { existing?: import("@/shared/types").M
         )}
       </div>
     </form>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Finalized report row — image released alongside the report          */
+/* ------------------------------------------------------------------ */
+function FinalizedReportRow({
+  report, scan, apt,
+}: {
+  report: RadiologyReport;
+  scan: MriScan;
+  apt: Appointment;
+}) {
+  const store = useStore();
+  const [showImage, setShowImage] = useState(false);
+
+  return (
+    <li className="rounded-lg border border-slate-200 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="font-semibold text-navy">
+            {scan.body_part} MRI — {format(parseISO(apt.date), "d MMM yyyy")}
+          </p>
+          <p className="text-xs text-slate-500">
+            {scan.protocol} · {scan.machine_name}
+          </p>
+        </div>
+        <StatusChip status={report.status} />
+      </div>
+      <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+        <div>
+          <dt className="label">Findings</dt>
+          <dd className="whitespace-pre-wrap text-slate-700">{report.findings}</dd>
+        </div>
+        <div>
+          <dt className="label">Impression</dt>
+          <dd className="whitespace-pre-wrap text-slate-700">{report.impression}</dd>
+        </div>
+      </dl>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+        <p className="text-xs text-slate-500">
+          Signed: <span className="font-semibold text-navy">{report.e_signature}</span>
+          {report.finalized_at && <> · {format(parseISO(report.finalized_at), "d MMM yyyy, h:mm a")}</>}
+        </p>
+        <div className="flex gap-2">
+          <button type="button" className="btn-ghost text-xs" onClick={() => setShowImage((v) => !v)}>
+            {showImage ? "Hide scan image" : "View scan image"}
+          </button>
+          <DownloadDicomButton scanId={scan.id} bodyPart={scan.body_part} />
+        </div>
+      </div>
+      {showImage && (
+        <div className="mt-3">
+          <DicomViewer
+            scanId={scan.id}
+            bodyPart={scan.body_part}
+            meta={{ protocol: scan.protocol, machine: scan.machine_name ?? undefined, performedAt: scan.performed_at ?? undefined }}
+            annotations={store.annotations.filter((a) => a.scan_id === scan.id)}
+            canAnnotate={false}
+          />
+        </div>
+      )}
+    </li>
   );
 }
 

@@ -12,9 +12,9 @@ These are the test accounts defined by `backend/database/003_seed_test_accounts.
 | Radiologist | `rad2` | `rad2@cr.test` | Set in Supabase Auth |
 | Admin | `admin1` | `admin1@cr.test` | Set in Supabase Auth |
 | Admin | `admin2` | `admin2@cr.test` | Set in Supabase Auth |
+| Super admin | `superadmin1` | `superadmin1@cr.test` | Set in Supabase Auth |
 | Referring doctor | `doc1` | `doc1@cr.test` | Set in Supabase Auth |
 | Referring doctor | `doc2` | `doc2@cr.test` | Set in Supabase Auth |
-| Super Admin | `superadmin1` | `superadmin1@cr.test` | Set in Supabase Auth |
 
 ## Setup
 

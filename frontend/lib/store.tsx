@@ -3,21 +3,53 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import {
   SEED_ANNOTATIONS, SEED_ANNOUNCEMENTS, SEED_APPOINTMENTS, SEED_AUDIT, SEED_BILLING,
-  SEED_CONTENT_PAGES, SEED_DOCTOR_REFERRALS, SEED_EQUIPMENT, SEED_EQUIPMENT_SERVICE_LOG,
-  SEED_INVENTORY_ITEMS, SEED_INVENTORY_TRANSACTIONS, SEED_MESSAGES, SEED_MESSAGE_THREADS,
-  SEED_NOTIFICATIONS, SEED_NOTIFICATION_PREFS, SEED_PREP_INSTRUCTIONS, SEED_PROFILES,
-  SEED_RECORDS, SEED_REPORTS, SEED_SCANS, SEED_SUPPLIERS, SCAN_PRICES,
+  SEED_COMMUNICATION_LOG, SEED_CONTENT_PAGES, SEED_DOCTOR_REFERRALS, SEED_EQUIPMENT,
+  SEED_EQUIPMENT_SERVICE_LOG, SEED_INVENTORY_ITEMS, SEED_INVENTORY_TRANSACTIONS, SEED_MESSAGES,
+  SEED_MESSAGE_THREADS, SEED_NOTIFICATIONS, SEED_NOTIFICATION_PREFS, SEED_PREP_INSTRUCTIONS,
+  SEED_PROFILES, SEED_RECORDS, SEED_REPORTS, SEED_SCANS, SEED_SUPPLIERS, SCAN_PRICES,
 } from "./seed";
 import type {
-  Announcement, Appointment, AuditLog, Billing, ContentPage, ContentPageId, Contraindications,
+  Announcement, Appointment, ArrivalStatus, AuditLog, Billing, CommunicationChannel,
+  CommunicationLog, CommunicationPurpose, ContentPage, ContentPageId, Contraindications,
   DoctorReferral, EquipmentLog, EquipmentServiceRecord, ImageAnnotation, InventoryCategory,
   InventoryItem, InventoryTransaction, InventoryTransactionType, MedicalRecord, Message,
   MessageThread, MriScan, Notification, NotificationPreferences, PrepInstruction, Profile,
-  RadiologyReport, Role, Supplier,
+  RadiologyReport, ReferralStatus, Role, Supplier,
 } from "@/shared/types";
 
 let uid = 100;
 const newId = (prefix: string) => `${prefix}-${++uid}-${Date.now().toString(36)}`;
+
+// Reception's referral vocabulary is a display-level derivation over
+// existing fields, falling back only when referral_status_override is set
+// explicitly — this is what lets the technician's existing "acknowledge
+// referral" flow (referral_reviewed) keep working unmodified. Exported so
+// components can render the same status without duplicating this logic.
+export function deriveReferralStatus(
+  apt: Pick<Appointment, "referral_status_override" | "referral_url" | "referring_doctor_name" | "referring_doctor_id" | "referral_reviewed">
+): ReferralStatus {
+  if (apt.referral_status_override) return apt.referral_status_override;
+  if (apt.referral_reviewed) return "verified";
+  if (apt.referral_url || apt.referring_doctor_name || apt.referring_doctor_id) return "received";
+  return "missing";
+}
+
+// Reception's front-desk arrival state machine (section 7 of the spec:
+// "make sure invalid transitions are prevented"). Deliberately permissive
+// about re-entering the same state (idempotent) and about a late arrival
+// un-no-showing themselves, since real front desks do both constantly.
+const ARRIVAL_TRANSITIONS: Record<ArrivalStatus, ArrivalStatus[]> = {
+  not_arrived: ["arrived", "checked_in", "waiting", "no_show"],
+  arrived: ["checked_in", "waiting", "no_show"],
+  checked_in: ["waiting", "no_show"],
+  waiting: ["no_show"],
+  no_show: ["arrived", "checked_in", "waiting"],
+};
+
+export function canTransitionArrival(from: ArrivalStatus, to: ArrivalStatus): boolean {
+  if (from === to) return true;
+  return ARRIVAL_TRANSITIONS[from]?.includes(to) ?? false;
+}
 
 interface Store {
   // real, authenticated identity — sourced from Supabase auth + profiles.role,
@@ -55,6 +87,7 @@ interface Store {
   announcements: Announcement[];
   prepInstructions: PrepInstruction[];
   scanPrices: Record<string, number>;
+  communicationLog: CommunicationLog[];
 
   // patient actions
   bookAppointment: (input: {
@@ -62,8 +95,16 @@ interface Store {
     referralFileName: string | null; referringDoctorId: string | null;
     referringDoctorName: string | null; referringDoctorPractice: string | null;
     usingReferralId?: string | null;
+    // Reception booking on a patient's behalf (section 13) — defaults to
+    // currentUser.id, which is what every existing patient-side caller
+    // already relies on implicitly.
+    patientId?: string;
+    // Set directly on the bill created alongside this appointment — avoids
+    // a separate follow-up call racing the same setState batch to find the
+    // bill that was just created.
+    paymentType?: string;
   }) => { ok: boolean; error?: string };
-  cancelAppointment: (id: string) => void;
+  cancelAppointment: (id: string, reason?: string) => void;
   // Reschedules any appointment to a new date/time/location, re-checking for
   // slot clashes exactly like bookAppointment. Used by patients (FR47, their
   // own upcoming appointments only — enforced in the UI) and by staff on the
@@ -117,6 +158,31 @@ interface Store {
   scheduleEquipmentService: (equipmentId: string) => void;
   registerEquipment: (input: { machine_name: string; model: string }) => void;
 
+  // reception actions — front-desk workflow (Reception Portal). Deliberately
+  // separate from the clinical `status`/scan/report actions above: reception
+  // never touches those, only arrival tracking, referral/payment
+  // administrative status, and patient registration.
+  registerPatient: (input: {
+    fullName: string; dob: string; sex: string | null; preferredName: string | null;
+    phone: string; email: string; address: string | null; suburb: string | null;
+    state: string | null; postcode: string | null;
+    medicareNumber: string | null; medicareExpiry: string | null;
+    // When a duplicate check already surfaced matches and reception
+    // confirmed this is genuinely a different person, forceCreate skips the
+    // check and creates the record anyway — never a silent/automatic merge.
+    forceCreate?: boolean;
+  }) => { ok: boolean; patientId?: string; possibleDuplicates: { id: string; full_name: string; dob: string; phone?: string }[] };
+  checkInAppointment: (appointmentId: string) => { ok: boolean; error?: string };
+  markArrived: (appointmentId: string) => { ok: boolean; error?: string };
+  markNoShow: (appointmentId: string) => { ok: boolean; error?: string };
+  confirmAppointment: (appointmentId: string) => void;
+  setReferralStatus: (appointmentId: string, status: ReferralStatus) => void;
+  setPaymentType: (billId: string, paymentType: string) => void;
+  // Never claims a message was actually delivered — no SMS/email provider is
+  // wired into this project. Always logs status "not_sent"; the UI is
+  // responsible for labeling this as demo mode, not this function.
+  logCommunication: (appointmentId: string, channel: CommunicationChannel, purpose: CommunicationPurpose) => void;
+
   // messaging (FR41 patient<->staff, FR43 internal staff<->staff)
   sendPatientMessage: (patientId: string, body: string) => void;
   sendInternalMessage: (body: string) => void;
@@ -158,7 +224,9 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
     [currentUser.role]
   );
 
-  const [profiles] = useState<Profile[]>(SEED_PROFILES);
+  // Reception's patient registration is the one thing that ever adds to this
+  // — every other role account is fixed seed data (see registerPatient).
+  const [profiles, setProfiles] = useState<Profile[]>(SEED_PROFILES);
   const [records, setRecords] = useState<MedicalRecord[]>(SEED_RECORDS);
   const [appointments, setAppointments] = useState<Appointment[]>(SEED_APPOINTMENTS);
   const [scans, setScans] = useState<MriScan[]>(SEED_SCANS);
@@ -180,6 +248,7 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
   const [announcements, setAnnouncements] = useState<Announcement[]>(SEED_ANNOUNCEMENTS);
   const [prepInstructions, setPrepInstructions] = useState<PrepInstruction[]>(SEED_PREP_INSTRUCTIONS);
   const [scanPrices, setScanPrices] = useState<Record<string, number>>(SCAN_PRICES);
+  const [communicationLog, setCommunicationLog] = useState<CommunicationLog[]>(SEED_COMMUNICATION_LOG);
 
   const writeAudit = useCallback(
     (user: Profile, action: string, entity: string, details: string) => {
@@ -214,7 +283,7 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
   }, []);
 
   const bookAppointment: Store["bookAppointment"] = useCallback(
-    ({ date, time_slot, location, body_part, referralFileName: referralPath, referringDoctorId, referringDoctorName, referringDoctorPractice, usingReferralId }) => {
+    ({ date, time_slot, location, body_part, referralFileName: referralPath, referringDoctorId, referringDoctorName, referringDoctorPractice, usingReferralId, patientId, paymentType }) => {
       const clash = appointments.some(
         (a) => a.date === date && a.time_slot === time_slot && a.location === location && a.status !== "cancelled"
       );
@@ -225,10 +294,15 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
       // separately typed/picked — it's already a verified account, not a
       // free-text claim.
       const finalReferringDoctorId = referral ? referral.referring_doctor_id : referringDoctorId;
+      // Reception booking on a patient's behalf (section 13) passes an
+      // explicit patientId; every patient-side caller omits it and books
+      // for themselves, exactly as before.
+      const targetPatientId = patientId ?? currentUser.id;
+      const staffBooked = targetPatientId !== currentUser.id;
 
       const apt: Appointment = {
         id: newId("apt"),
-        patient_id: currentUser.id,
+        patient_id: targetPatientId,
         date, time_slot, location, body_part,
         status: "scheduled",
         referral_url: referralPath,
@@ -244,6 +318,15 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
         assigned_technician_id: null,
         assigned_radiologist_id: null,
         created_at: new Date().toISOString(),
+        // Staff booking a patient in over the phone/in person is already a
+        // confirmed booking; a patient's own online self-service booking
+        // still goes through reception's separate confirmation step.
+        confirmed: staffBooked,
+        arrival_status: "not_arrived",
+        arrived_at: null,
+        checked_in_at: null,
+        cancellation_reason: null,
+        referral_status_override: null,
       };
       setAppointments((prev) => [apt, ...prev]);
       setBilling((prev) => [
@@ -252,7 +335,7 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
           appointment_id: apt.id,
           amount: scanPrices[body_part] ?? 480,
           payment_status: "pending",
-          payment_method: null,
+          payment_method: paymentType ?? null,
           receipt_url: null,
           paid_at: null,
           insurance_claim_number: null,
@@ -268,23 +351,28 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
           prev.map((r) => (r.id === referral.id ? { ...r, used_in_appointment_id: apt.id } : r))
         );
       }
-      writeAudit(currentUser, "APPOINTMENT_BOOKED", "appointments", `${body_part} — ${location} on ${date} ${time_slot}`);
-      pushNotification(currentUser.id, "appointment_booked", "Appointment booked", `${body_part} MRI — ${location} on ${date} at ${time_slot}.`);
+      writeAudit(
+        currentUser,
+        "APPOINTMENT_BOOKED",
+        "appointments",
+        `${body_part} — ${location} on ${date} ${time_slot}${staffBooked ? " (booked by reception)" : ""}`
+      );
+      pushNotification(targetPatientId, "appointment_booked", "Appointment booked", `${body_part} MRI — ${location} on ${date} at ${time_slot}.`);
       return { ok: true };
     },
     [appointments, currentUser, doctorReferrals, scanPrices, writeAudit, pushNotification]
   );
 
   const cancelAppointment = useCallback(
-    (id: string) => {
+    (id: string, reason?: string) => {
       const apt = appointments.find((a) => a.id === id);
-      setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status: "cancelled" } : a)));
+      setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status: "cancelled", cancellation_reason: reason ?? a.cancellation_reason } : a)));
       const staffInitiated = apt && apt.patient_id !== currentUser.id;
       writeAudit(
         currentUser,
         "APPOINTMENT_CANCELLED",
         "appointments",
-        staffInitiated ? `Appointment ${id} cancelled by staff on behalf of patient` : `Appointment ${id} cancelled`
+        `Appointment ${id} cancelled${staffInitiated ? " by staff on behalf of patient" : ""}${reason ? ` — reason: ${reason}` : ""}`
       );
       // Always notify the patient the appointment belongs to — not
       // whoever clicked cancel, which matters once staff can cancel on a
@@ -331,9 +419,18 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
         if (existing) {
           return prev.map((r) => (r.patient_id === currentUser.id ? { ...r, ...patch } : r));
         }
+        // A patient self-signing-up and saving their health profile before
+        // reception ever registers them still needs a patient_code — same
+        // generator registerPatient uses, so codes never collide either way.
         return [
           ...prev,
-          { id: newId("rec"), patient_id: currentUser.id, dob: "1990-01-01", ...patch },
+          {
+            id: newId("rec"), patient_id: currentUser.id, dob: "1990-01-01",
+            patient_code: `CR-${10000 + prev.length + 1}`, sex: null, preferred_name: null,
+            address: null, suburb: null, state: null, postcode: null,
+            medicare_number: null, medicare_expiry: null,
+            ...patch,
+          },
         ];
       });
       writeAudit(currentUser, "RECORD_UPDATED", "patient_medical_records", "Health profile & contraindications saved");
@@ -868,19 +965,151 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
     [currentUser, writeAudit]
   );
 
+  const registerPatient: Store["registerPatient"] = useCallback(
+    ({ fullName, dob, sex, preferredName, phone, email, address, suburb, state, postcode, medicareNumber, medicareExpiry, forceCreate }) => {
+      const trimmedName = fullName.trim();
+      const normalizedPhone = phone.trim();
+
+      // Duplicate check (never auto-merge) — same name + same DOB, or same
+      // name + same mobile. Surfaced to reception to pick the existing
+      // patient or confirm it's genuinely a different person.
+      if (!forceCreate) {
+        const possibleDuplicates = profiles
+          .filter((p) => p.role === "patient")
+          .filter((p) => p.full_name.trim().toLowerCase() === trimmedName.toLowerCase())
+          .filter((p) => {
+            const record = records.find((r) => r.patient_id === p.id);
+            const dobMatch = record?.dob === dob;
+            const phoneMatch = Boolean(normalizedPhone) && p.phone?.replace(/\s+/g, "") === normalizedPhone.replace(/\s+/g, "");
+            return dobMatch || phoneMatch;
+          })
+          .map((p) => {
+            const record = records.find((r) => r.patient_id === p.id);
+            return { id: p.id, full_name: p.full_name, dob: record?.dob ?? "", phone: p.phone };
+          });
+        if (possibleDuplicates.length > 0) {
+          return { ok: false, possibleDuplicates };
+        }
+      }
+
+      const patientId = newId("patient");
+      const newProfile: Profile = {
+        id: patientId, email: email.trim(), full_name: trimmedName, role: "patient",
+        phone: normalizedPhone || undefined, username: null, created_at: new Date().toISOString(),
+      };
+      setProfiles((prev) => [...prev, newProfile]);
+      setRecords((prev) => [
+        ...prev,
+        {
+          id: newId("rec"), patient_id: patientId, dob,
+          history: "", contraindications: { metal_implants: false, pacemaker: false, claustrophobia: false, contrast_allergy: false, pregnancy: false, other: null },
+          emergency_contact: { name: "", relationship: "", phone: "" },
+          patient_code: `CR-${10000 + prev.length + 1}`, sex, preferred_name: preferredName,
+          address, suburb, state, postcode, medicare_number: medicareNumber, medicare_expiry: medicareExpiry,
+        },
+      ]);
+      writeAudit(currentUser, "PATIENT_REGISTERED", "profiles", `${trimmedName} registered at the front desk`);
+      return { ok: true, patientId, possibleDuplicates: [] };
+    },
+    [profiles, records, currentUser, writeAudit]
+  );
+
+  const checkInAppointment: Store["checkInAppointment"] = useCallback(
+    (appointmentId) => {
+      const apt = appointments.find((a) => a.id === appointmentId);
+      if (!apt) return { ok: false, error: "Appointment not found." };
+      if (apt.status === "cancelled") return { ok: false, error: "This appointment was cancelled — it can't be checked in." };
+      if (!canTransitionArrival(apt.arrival_status, "waiting")) {
+        return { ok: false, error: `Cannot check in from "${apt.arrival_status.replace(/_/g, " ")}".` };
+      }
+      const now = new Date().toISOString();
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === appointmentId ? { ...a, arrival_status: "waiting", arrived_at: a.arrived_at ?? now, checked_in_at: now } : a))
+      );
+      writeAudit(currentUser, "PATIENT_CHECKED_IN", "appointments", `Checked in appointment ${appointmentId}`);
+      return { ok: true };
+    },
+    [appointments, currentUser, writeAudit]
+  );
+
+  const markArrived: Store["markArrived"] = useCallback(
+    (appointmentId) => {
+      const apt = appointments.find((a) => a.id === appointmentId);
+      if (!apt) return { ok: false, error: "Appointment not found." };
+      if (!canTransitionArrival(apt.arrival_status, "arrived")) {
+        return { ok: false, error: `Cannot mark arrived from "${apt.arrival_status.replace(/_/g, " ")}".` };
+      }
+      setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, arrival_status: "arrived", arrived_at: new Date().toISOString() } : a)));
+      writeAudit(currentUser, "PATIENT_ARRIVED", "appointments", `Marked arrived: appointment ${appointmentId}`);
+      return { ok: true };
+    },
+    [appointments, currentUser, writeAudit]
+  );
+
+  const markNoShow: Store["markNoShow"] = useCallback(
+    (appointmentId) => {
+      const apt = appointments.find((a) => a.id === appointmentId);
+      if (!apt) return { ok: false, error: "Appointment not found." };
+      if (!canTransitionArrival(apt.arrival_status, "no_show")) {
+        return { ok: false, error: `Cannot mark no-show from "${apt.arrival_status.replace(/_/g, " ")}".` };
+      }
+      setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, arrival_status: "no_show" } : a)));
+      writeAudit(currentUser, "APPOINTMENT_NO_SHOW", "appointments", `Marked no-show: appointment ${appointmentId}`);
+      return { ok: true };
+    },
+    [appointments, currentUser, writeAudit]
+  );
+
+  const confirmAppointment: Store["confirmAppointment"] = useCallback(
+    (appointmentId) => {
+      setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, confirmed: true } : a)));
+      writeAudit(currentUser, "APPOINTMENT_CONFIRMED", "appointments", `Appointment ${appointmentId} confirmed`);
+    },
+    [currentUser, writeAudit]
+  );
+
+  const setReferralStatus: Store["setReferralStatus"] = useCallback(
+    (appointmentId, status) => {
+      setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, referral_status_override: status } : a)));
+      writeAudit(currentUser, "REFERRAL_STATUS_UPDATED", "appointments", `Appointment ${appointmentId} referral status set to ${status}`);
+    },
+    [currentUser, writeAudit]
+  );
+
+  const setPaymentType: Store["setPaymentType"] = useCallback(
+    (billId, paymentType) => {
+      setBilling((prev) => prev.map((b) => (b.id === billId ? { ...b, payment_method: paymentType } : b)));
+      writeAudit(currentUser, "PAYMENT_TYPE_SET", "billing", `Bill ${billId} payment type set to ${paymentType}`);
+    },
+    [currentUser, writeAudit]
+  );
+
+  const logCommunication: Store["logCommunication"] = useCallback(
+    (appointmentId, channel, purpose) => {
+      setCommunicationLog((prev) => [
+        { id: newId("comm"), appointment_id: appointmentId, channel, purpose, status: "not_sent", note: "Demo mode — no provider connected.", created_by: currentUser.id, created_at: new Date().toISOString() },
+        ...prev,
+      ]);
+      writeAudit(currentUser, "COMMUNICATION_LOGGED", "communications", `${channel} ${purpose} logged for appointment ${appointmentId} (demo mode, not sent)`);
+    },
+    [currentUser, writeAudit]
+  );
+
   const value = useMemo<Store>(
     () => ({
       currentUser, previewRole, setPreviewRole, effectiveRole,
       profiles, records, appointments, scans, reports, billing, equipment, equipmentServiceLog,
       audit, notifications, notificationPreferences, doctorReferrals, annotations,
       messageThreads, messages, inventoryItems, inventoryTransactions, suppliers,
-      contentPages, announcements, prepInstructions, scanPrices,
+      contentPages, announcements, prepInstructions, scanPrices, communicationLog,
       bookAppointment, cancelAppointment, rescheduleAppointment, updateRecord, updateNotificationPreferences,
       startScan, logScan, acknowledgeReferral,
       saveReportDraft, finalizeReport, addAnnotation, removeAnnotation,
       uploadReferral, createDoctorReferral,
       markBillPaid, submitInsuranceClaim, resolveInsuranceClaim,
       assignStaffToAppointment, scheduleEquipmentService, registerEquipment,
+      registerPatient, checkInAppointment, markArrived, markNoShow, confirmAppointment,
+      setReferralStatus, setPaymentType, logCommunication,
       sendPatientMessage, sendInternalMessage,
       addInventoryItem, recordInventoryTransaction, addSupplier,
       updateContentPage, addAnnouncement, toggleAnnouncement, updatePrepInstruction, updateScanPrice,
@@ -891,11 +1120,13 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
       currentUser, previewRole, setPreviewRole, effectiveRole, profiles, records, appointments, scans, reports,
       billing, equipment, equipmentServiceLog, audit, notifications, notificationPreferences, doctorReferrals,
       annotations, messageThreads, messages, inventoryItems, inventoryTransactions, suppliers,
-      contentPages, announcements, prepInstructions, scanPrices,
+      contentPages, announcements, prepInstructions, scanPrices, communicationLog,
       bookAppointment, cancelAppointment, rescheduleAppointment, updateRecord, updateNotificationPreferences,
       startScan, logScan, acknowledgeReferral, saveReportDraft, finalizeReport, addAnnotation, removeAnnotation,
       uploadReferral, createDoctorReferral, markBillPaid, submitInsuranceClaim, resolveInsuranceClaim,
       assignStaffToAppointment, scheduleEquipmentService, registerEquipment,
+      registerPatient, checkInAppointment, markArrived, markNoShow, confirmAppointment,
+      setReferralStatus, setPaymentType, logCommunication,
       sendPatientMessage, sendInternalMessage, addInventoryItem, recordInventoryTransaction, addSupplier,
       updateContentPage, addAnnouncement, toggleAnnouncement, updatePrepInstruction, updateScanPrice,
       markNotificationRead, logAssistantAction,

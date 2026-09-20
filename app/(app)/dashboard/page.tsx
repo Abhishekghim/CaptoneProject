@@ -7,6 +7,7 @@ import RadiologistWorkspace from "@/frontend/components/radiologist/RadiologistW
 import AdminDashboard from "@/frontend/components/admin/AdminDashboard";
 import ReferringDoctorPortal from "@/frontend/components/referring-doctor/ReferringDoctorPortal";
 import SuperAdminDashboard from "@/frontend/components/super-admin/SuperAdminDashboard";
+import ReceptionDashboard from "@/frontend/components/reception/ReceptionDashboard";
 import { useStore } from "@/frontend/lib/store";
 
 export default function Home() {
@@ -20,6 +21,7 @@ export default function Home() {
       {effectiveRole === "admin" && <AdminDashboard />}
       {effectiveRole === "referring_doctor" && <ReferringDoctorPortal />}
       {effectiveRole === "super_admin" && <SuperAdminDashboard />}
+      {effectiveRole === "reception" && <ReceptionDashboard />}
     </>
   );
 }

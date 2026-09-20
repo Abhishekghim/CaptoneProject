@@ -3,6 +3,7 @@ import type {
   Appointment, Billing, EquipmentLog, MedicalRecord, MriScan, Profile, RadiologyReport,
 } from "@/shared/types";
 import type { AssistantRole } from "@/shared/assistant/types";
+import { deriveReferralStatus } from "@/frontend/lib/store";
 
 export interface AssistantContext {
   role: AssistantRole;
@@ -67,6 +68,8 @@ export function buildAssistantContext(store: StoreSnapshot): AssistantContext {
     case "admin":
     case "super_admin":
       return buildAdminContext(store, me);
+    case "reception":
+      return buildReceptionContext(store, me);
     default:
       return { role: me.role, summary: "No authorized data available." };
   }
@@ -144,6 +147,34 @@ function buildTechnicianContext(store: StoreSnapshot, me: Profile): AssistantCon
   if (myScans.length > 0) lines.push(`You have logged ${myScans.length} scan(s) this session.`);
 
   return { role: "technician", summary: lines.join("\n") };
+}
+
+function buildReceptionContext(store: StoreSnapshot, me: Profile): AssistantContext {
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const today = store.appointments
+    .filter((a) => a.date === todayStr && a.status !== "cancelled")
+    .sort((a, b) => a.time_slot.localeCompare(b.time_slot));
+
+  // Deliberately administrative only — arrival/referral/payment status, no
+  // findings/impressions/contraindications. Mirrors ReceptionDashboard's own
+  // filtering exactly (see frontend/components/reception/ReceptionDashboard.tsx).
+  const lines: string[] = [`You are ${me.full_name}, reception staff. Today's schedule (${today.length}):`];
+  if (today.length === 0) {
+    lines.push("- No appointments today.");
+  } else {
+    today.forEach((a) => {
+      const patient = store.profiles.find((p) => p.id === a.patient_id);
+      const bill = store.billing.find((b) => b.appointment_id === a.id);
+      lines.push(
+        `- ${a.time_slot} ${patient?.full_name ?? "Unknown"} — ${a.body_part} — arrival: ${a.arrival_status.replace(/_/g, " ")} — referral: ${deriveReferralStatus(a)} — payment: ${bill?.payment_status ?? "n/a"}${bill?.payment_method ? ` (${bill.payment_method})` : ""}`
+      );
+    });
+  }
+  const waiting = today.filter((a) => a.arrival_status === "waiting").length;
+  const needsAttention = today.filter((a) => ["missing", "pending_verification"].includes(deriveReferralStatus(a))).length;
+  lines.push(`Currently waiting: ${waiting}. Appointments needing referral attention: ${needsAttention}.`);
+
+  return { role: "reception", summary: lines.join("\n") };
 }
 
 function buildRadiologistContext(store: StoreSnapshot, me: Profile): AssistantContext {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSuperAdmin } from "@/backend/lib/adminAuth";
 import { createAdminClient } from "@/backend/lib/supabase/admin";
 
-const CREATABLE_ROLES = ["technician", "radiologist", "admin", "super_admin", "referring_doctor"] as const;
+const CREATABLE_ROLES = ["reception", "technician", "radiologist", "admin", "super_admin", "referring_doctor"] as const;
 type CreatableRole = (typeof CREATABLE_ROLES)[number];
 
 // The only path (besides patient self-signup and the doctor-request queue)

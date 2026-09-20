@@ -1,4 +1,4 @@
-export type Role = "patient" | "technician" | "radiologist" | "admin" | "referring_doctor" | "super_admin";
+export type Role = "patient" | "technician" | "radiologist" | "admin" | "referring_doctor" | "super_admin" | "reception";
 
 export type AppointmentStatus = "scheduled" | "in_progress" | "completed" | "cancelled";
 export type ReportStatus = "draft" | "finalized";
@@ -31,7 +31,36 @@ export interface MedicalRecord {
   history: string;
   contraindications: Contraindications;
   emergency_contact: { name: string; relationship: string; phone: string };
+  // Reception-owned demographic/admin fields (Reception Portal) — deliberately
+  // kept off Profile: this is "the patient-specific record beyond auth
+  // identity," the same reason dob already lived here rather than on Profile.
+  // A person reception registers may never have (or want) a portal login at
+  // all, so none of this implies or requires a Supabase auth account.
+  patient_code: string; // e.g. "CR-10001", assigned at registration
+  sex: string | null;
+  preferred_name: string | null;
+  address: string | null;
+  suburb: string | null;
+  state: string | null;
+  postcode: string | null;
+  medicare_number: string | null;
+  medicare_expiry: string | null; // yyyy-MM
 }
+
+// Front-desk arrival tracking — deliberately separate from AppointmentStatus
+// (below), which is the clinical/scan-progress lifecycle every other
+// dashboard already depends on. A patient can be "waiting" while the
+// appointment is still clinically "scheduled"; these are different axes,
+// not a replacement for the existing status field.
+export type ArrivalStatus = "not_arrived" | "arrived" | "checked_in" | "waiting" | "no_show";
+
+// Reception's referral vocabulary. Falls back to a value derived from
+// referral_url/referring_doctor_name/referral_reviewed when
+// referral_status_override is null — see deriveReferralStatus() in
+// frontend/lib/store.tsx. Keeping this an override rather than replacing
+// the existing fields means the technician's existing "acknowledge
+// referral" flow (referral_reviewed) keeps working unmodified.
+export type ReferralStatus = "missing" | "received" | "pending_verification" | "verified" | "expired" | "rejected";
 
 export interface Appointment {
   id: string;
@@ -61,6 +90,13 @@ export interface Appointment {
   assigned_radiologist_id: string | null;
   notes?: string;
   created_at: string;
+  // --- Reception Portal fields (additive, all optional-safe defaults) ---
+  confirmed: boolean;
+  arrival_status: ArrivalStatus;
+  arrived_at: string | null;
+  checked_in_at: string | null;
+  cancellation_reason: string | null;
+  referral_status_override: ReferralStatus | null;
 }
 
 // A radiologist's point annotation on a DICOM viewer slice (FR27 — "view
@@ -303,4 +339,27 @@ export interface PrepInstruction {
   body_part: string;
   instructions: string;
   updated_at: string;
+}
+
+// ----------------------------------------------------------------------------
+// Reception Portal — patient communications log
+// ----------------------------------------------------------------------------
+// Deliberately never claims a message was actually delivered — there is no
+// SMS/email provider wired into this project (see frontend/lib/receiptPdf.ts
+// and similar for the project's existing "real artifact, no fake success
+// state" pattern). Every entry is created with status "not_sent"; the UI
+// labels this as demo mode rather than pretending otherwise.
+export type CommunicationChannel = "sms" | "email" | "phone";
+export type CommunicationPurpose = "confirmation" | "reminder" | "cancellation" | "reschedule" | "general";
+export type CommunicationStatus = "not_sent" | "queued" | "failed";
+
+export interface CommunicationLog {
+  id: string;
+  appointment_id: string;
+  channel: CommunicationChannel;
+  purpose: CommunicationPurpose;
+  status: CommunicationStatus;
+  note: string | null;
+  created_by: string;
+  created_at: string;
 }

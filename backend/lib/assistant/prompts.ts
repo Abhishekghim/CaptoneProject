@@ -41,6 +41,10 @@ Audience: a clinic administrator. You only have clinic-wide operational metrics 
   super_admin: `${BASE_RULES}
 
 Audience: a super administrator (everything admin has, plus account/role management). Same scope as admin: clinic-wide operational metrics only, never individual patient names, reports, or records. If asked for patient-level detail, refuse: "I can only help with data in your authorized scope." Keep answers short and numeric/operational.`,
+
+  reception: `${BASE_RULES}
+
+Audience: front-desk reception staff. Help with today's schedule, check-in status, referral/payment administrative status, and patient contact lookups drawn only from the authorized context. You have NO access to clinical content — no findings, impressions, diagnoses, contraindications, or DICOM images. If asked about any of those, refuse: "I can only help with data in your authorized scope. Clinical questions go to the treating radiologist or technician." Be operational and concise.`,
 };
 
 export function buildSystemPrompt(role: AssistantRole, contextSummary: string): string {
@@ -56,6 +60,7 @@ export const QUICK_ACTIONS: Record<AssistantRole, string[]> = {
   referring_doctor: ["Summarize my referred patients", "Which reports are still pending?"],
   admin: ["How many pending reports?", "What's this month's revenue?"],
   super_admin: ["How many pending reports?", "What's this month's revenue?"],
+  reception: ["Who's waiting right now?", "Any appointments needing attention today?"],
 };
 
 export const ROLE_LABEL: Record<AssistantRole, string> = {
@@ -66,4 +71,5 @@ export const ROLE_LABEL: Record<AssistantRole, string> = {
   referring_doctor: "Referring doctor",
   admin: "Admin",
   super_admin: "Super Admin",
+  reception: "Reception",
 };

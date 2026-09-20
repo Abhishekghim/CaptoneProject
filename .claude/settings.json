@@ -4,7 +4,8 @@
       "Bash(pkill -f \"next dev\")",
       "Bash(pkill -f \"next-server\")",
       "Read(//tmp/**)",
-      "Read(//c/Users/abhis/AppData/Local/Temp/**)"
+      "Read(//c/Users/abhis/AppData/Local/Temp/**)",
+      "Bash(npx tsc *)"
     ]
   }
 }

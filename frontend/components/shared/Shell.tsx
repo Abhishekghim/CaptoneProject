@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import {
   Activity, Bell, CalendarClock, ClipboardList, Crown, Eye, FileSignature, FileUp, KeySquare,
-  LayoutDashboard, LogOut, ScanLine, ShieldCheck, Stethoscope, UserRound, Users, Wrench, X,
+  LayoutDashboard, LogOut, ScanLine, ShieldCheck, Stethoscope, UserRound, Users, UsersRound,
+  Wrench, X,
 } from "lucide-react";
 import { useStore } from "@/frontend/lib/store";
 import { createClient } from "@/frontend/lib/supabase/client";
@@ -21,6 +22,7 @@ const ROLE_META: Record<Role, { label: string; icon: React.ElementType; blurb: s
   admin: { label: "Admin", icon: ShieldCheck, blurb: "KPIs, equipment, audit trail" },
   referring_doctor: { label: "Referring Doctor", icon: FileUp, blurb: "Upload referrals, view your patients' reports" },
   super_admin: { label: "Super Admin", icon: Crown, blurb: "Accounts, roles, and everything admin has" },
+  reception: { label: "Reception", icon: UsersRound, blurb: "Check-in, waiting room, front-desk schedule" },
 };
 
 const NAV_BY_ROLE: Record<Role, { label: string; icon: React.ElementType }[]> = {
@@ -50,6 +52,11 @@ const NAV_BY_ROLE: Record<Role, { label: string; icon: React.ElementType }[]> = 
     { label: "Staff accounts", icon: KeySquare },
     { label: "Overview", icon: LayoutDashboard },
     { label: "Audit log", icon: ShieldCheck },
+  ],
+  reception: [
+    { label: "Today's schedule", icon: CalendarClock },
+    { label: "Waiting room", icon: UsersRound },
+    { label: "Patients", icon: Users },
   ],
 };
 

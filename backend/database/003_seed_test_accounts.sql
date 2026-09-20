@@ -38,7 +38,13 @@ update public.profiles set role = 'referring_doctor', username = 'doc2', full_na
 update public.profiles set role = 'super_admin', username = 'superadmin1', full_name = 'Super Admin One'
   where email = 'superadmin1@cr.test';
 
--- Sanity check — should return exactly 11 rows (two per role above, one super_admin).
+-- Added alongside backend/database/010_reception_role.sql — create
+-- reception1@cr.test in Authentication -> Users first, same as every other
+-- account above, then re-run this whole script (it's idempotent).
+update public.profiles set role = 'reception', username = 'reception1', full_name = 'Reception One'
+  where email = 'reception1@cr.test';
+
+-- Sanity check — should return exactly 12 rows (two per role above, one super_admin, one reception).
 select email, username, role, full_name from public.profiles
   where email like '%@cr.test'
   order by role, username;

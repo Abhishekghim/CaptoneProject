@@ -1,9 +1,9 @@
 import { addDays, format, subDays } from "date-fns";
 import type {
-  Announcement, Appointment, AuditLog, Billing, ContentPage, DoctorReferral, EquipmentLog,
-  EquipmentServiceRecord, ImageAnnotation, InventoryItem, InventoryTransaction, MedicalRecord,
-  Message, MessageThread, MriScan, Notification, NotificationPreferences, PrepInstruction,
-  Profile, RadiologyReport, Supplier,
+  Announcement, Appointment, AuditLog, Billing, CommunicationLog, ContentPage, DoctorReferral,
+  EquipmentLog, EquipmentServiceRecord, ImageAnnotation, InventoryItem, InventoryTransaction,
+  MedicalRecord, Message, MessageThread, MriScan, Notification, NotificationPreferences,
+  PrepInstruction, Profile, RadiologyReport, Supplier,
 } from "@/shared/types";
 
 const today = new Date();
@@ -18,9 +18,15 @@ export const SEED_PROFILES: Profile[] = [
   { id: "u-patient",  email: "amelia.ng@example.com",   full_name: "Amelia Ng",       role: "patient",     phone: "+61 400 111 222", created_at: ts(-120) },
   { id: "u-patient2", email: "raj.patel@example.com",   full_name: "Raj Patel",       role: "patient",     phone: "+61 400 333 444", created_at: ts(-90) },
   { id: "u-patient3", email: "s.kowalski@example.com",  full_name: "Sofia Kowalski",  role: "patient",     phone: "+61 400 555 666", created_at: ts(-60) },
+  // Walk-in style patients, registered by reception directly (no portal
+  // login) — demonstrates the Reception Portal's own patient registration
+  // rather than every patient having come through self-service /signup.
+  { id: "u-patient4", email: "",                         full_name: "Marco Rossi",     role: "patient",     phone: "+61 400 888 111", created_at: ts(0, 8, 10) },
+  { id: "u-patient5", email: "",                         full_name: "Priya Nair",      role: "patient",     phone: "+61 400 777 222", created_at: ts(0, 8, 20) },
   { id: "u-tech",     email: "l.tran@capitalrad.com",   full_name: "Linh Tran",       role: "technician",  phone: "+61 411 222 333", created_at: ts(-400) },
   { id: "u-rad",      email: "dr.osei@capitalrad.com",  full_name: "Dr. Kwame Osei",  role: "radiologist", phone: "+61 422 333 444", created_at: ts(-700) },
   { id: "u-admin",    email: "m.rivers@capitalrad.com", full_name: "Morgan Rivers",   role: "admin",       phone: "+61 433 444 555", created_at: ts(-900) },
+  { id: "u-reception",email: "j.alvarez@capitalrad.com",full_name: "Jess Alvarez",    role: "reception",   phone: "+61 411 999 000", created_at: ts(-200) },
   { id: "u-doctor",   email: "dr.chen@referral-clinic.com", full_name: "Dr. Layla Chen", role: "referring_doctor", phone: "+61 444 555 666", created_at: ts(-500) },
 ];
 
@@ -30,27 +36,63 @@ export const SEED_RECORDS: MedicalRecord[] = [
     history: "Chronic lower-back pain since 2023. Previous lumbar X-ray (2024) unremarkable.",
     contraindications: { metal_implants: false, pacemaker: false, claustrophobia: true, contrast_allergy: false, pregnancy: false, other: null },
     emergency_contact: { name: "David Ng", relationship: "Spouse", phone: "+61 400 999 888" },
+    patient_code: "CR-10001", sex: "Female", preferred_name: null,
+    address: "14 Wattle St", suburb: "Surry Hills", state: "NSW", postcode: "2010",
+    medicare_number: "2950 1234 5", medicare_expiry: "2028-04",
   },
   {
     id: "rec-2", patient_id: "u-patient2", dob: "1975-11-02",
     history: "Right-knee meniscus injury, post-arthroscopy 2022.",
     contraindications: { metal_implants: true, pacemaker: false, claustrophobia: false, contrast_allergy: true, pregnancy: false, other: "Titanium knee screws (MRI-conditional)" },
     emergency_contact: { name: "Priya Patel", relationship: "Sister", phone: "+61 400 777 666" },
+    patient_code: "CR-10002", sex: "Male", preferred_name: null,
+    address: "88 Church St", suburb: "Parramatta", state: "NSW", postcode: "2150",
+    medicare_number: "3164 8821 2", medicare_expiry: "2027-11",
   },
   {
     id: "rec-3", patient_id: "u-patient3", dob: "1996-07-29",
     history: "Recurrent migraines with aura; neurologist referral for brain MRI.",
     contraindications: { metal_implants: false, pacemaker: false, claustrophobia: false, contrast_allergy: false, pregnancy: false, other: null },
     emergency_contact: { name: "Jan Kowalski", relationship: "Father", phone: "+61 400 123 321" },
+    patient_code: "CR-10003", sex: "Female", preferred_name: "Sofi",
+    address: "6 Victor St", suburb: "Chatswood", state: "NSW", postcode: "2067",
+    medicare_number: "4207 5563 1", medicare_expiry: "2026-12",
+  },
+  // Registered at the front desk this morning — deliberately thin (no
+  // history/contraindications yet, that's the patient's own health-profile
+  // form, out of reception's scope) but with the demographic/Medicare
+  // details reception actually captures at registration.
+  {
+    id: "rec-4", patient_id: "u-patient4", dob: "1990-02-18",
+    history: "", contraindications: { metal_implants: false, pacemaker: false, claustrophobia: false, contrast_allergy: false, pregnancy: false, other: null },
+    emergency_contact: { name: "", relationship: "", phone: "" },
+    patient_code: "CR-10004", sex: "Male", preferred_name: null,
+    address: null, suburb: null, state: null, postcode: null,
+    medicare_number: null, medicare_expiry: null,
+  },
+  {
+    id: "rec-5", patient_id: "u-patient5", dob: "1983-09-05",
+    history: "", contraindications: { metal_implants: false, pacemaker: false, claustrophobia: false, contrast_allergy: false, pregnancy: false, other: null },
+    emergency_contact: { name: "", relationship: "", phone: "" },
+    patient_code: "CR-10005", sex: "Female", preferred_name: null,
+    address: "21 Elizabeth St", suburb: "Sydney", state: "NSW", postcode: "2000",
+    medicare_number: "2891 4471 9", medicare_expiry: "2029-03",
   },
 ];
 
 export const SEED_APPOINTMENTS: Appointment[] = [
-  { id: "apt-1", patient_id: "u-patient",  date: d(0),  time_slot: "09:00", location: "Sydney CBD Clinic",   body_part: "Lumbar Spine", status: "scheduled",   referral_url: "referrals/amelia-ng-lumbar.pdf", referring_doctor_id: "u-doctor", referring_doctor_name: null, referring_doctor_practice: null, referral_reviewed: false, referral_reviewed_by: null, referral_reviewed_at: null, assigned_technician_id: "u-tech", assigned_radiologist_id: null, created_at: ts(-6) },
-  { id: "apt-2", patient_id: "u-patient2", date: d(0),  time_slot: "10:30", location: "Sydney CBD Clinic",   body_part: "Right Knee",   status: "scheduled",   referral_url: "referrals/raj-patel-knee.pdf",   referring_doctor_id: null, referring_doctor_name: "Dr. Sarah Kim", referring_doctor_practice: "Northside Family Practice", referral_reviewed: false, referral_reviewed_by: null, referral_reviewed_at: null, assigned_technician_id: null, assigned_radiologist_id: null, created_at: ts(-4) },
-  { id: "apt-3", patient_id: "u-patient3", date: d(-2), time_slot: "14:00", location: "Parramatta Imaging",  body_part: "Brain",        status: "completed",   referral_url: "referrals/s-kowalski-brain.pdf", referring_doctor_id: null, referring_doctor_name: null, referring_doctor_practice: null, referral_reviewed: true, referral_reviewed_by: "u-tech", referral_reviewed_at: ts(-2, 13, 50), assigned_technician_id: "u-tech", assigned_radiologist_id: "u-rad", created_at: ts(-10) },
-  { id: "apt-4", patient_id: "u-patient",  date: d(-30),time_slot: "11:00", location: "Sydney CBD Clinic",   body_part: "Cervical Spine", status: "completed", referral_url: null, referring_doctor_id: "u-doctor", referring_doctor_name: null, referring_doctor_practice: null, referral_reviewed: false, referral_reviewed_by: null, referral_reviewed_at: null, assigned_technician_id: "u-tech", assigned_radiologist_id: "u-rad", created_at: ts(-35) },
-  { id: "apt-5", patient_id: "u-patient2", date: d(5),  time_slot: "15:30", location: "Chatswood Centre",    body_part: "Shoulder",     status: "scheduled",   referral_url: null, referring_doctor_id: null, referring_doctor_name: null, referring_doctor_practice: null, referral_reviewed: false, referral_reviewed_by: null, referral_reviewed_at: null, assigned_technician_id: null, assigned_radiologist_id: null, created_at: ts(-1) },
+  // Today's schedule — deliberately varied arrival/referral/confirmation
+  // states so the Reception Portal has a realistic "busy morning" to show
+  // (checked-in, waiting, in-progress, no-show, and an unconfirmed later
+  // slot), not just a flat list of "scheduled" rows.
+  { id: "apt-1", patient_id: "u-patient",  date: d(0),  time_slot: "09:00", location: "Sydney CBD Clinic",   body_part: "Lumbar Spine", status: "scheduled",   referral_url: "referrals/amelia-ng-lumbar.pdf", referring_doctor_id: "u-doctor", referring_doctor_name: null, referring_doctor_practice: null, referral_reviewed: false, referral_reviewed_by: null, referral_reviewed_at: null, assigned_technician_id: "u-tech", assigned_radiologist_id: null, created_at: ts(-6), confirmed: true, arrival_status: "waiting", arrived_at: ts(0, 8, 50), checked_in_at: ts(0, 8, 52), cancellation_reason: null, referral_status_override: null },
+  { id: "apt-2", patient_id: "u-patient2", date: d(0),  time_slot: "10:30", location: "Sydney CBD Clinic",   body_part: "Right Knee",   status: "scheduled",   referral_url: "referrals/raj-patel-knee.pdf",   referring_doctor_id: null, referring_doctor_name: "Dr. Sarah Kim", referring_doctor_practice: "Northside Family Practice", referral_reviewed: false, referral_reviewed_by: null, referral_reviewed_at: null, assigned_technician_id: null, assigned_radiologist_id: null, created_at: ts(-4), confirmed: true, arrival_status: "waiting", arrived_at: ts(0, 10, 12), checked_in_at: ts(0, 10, 14), cancellation_reason: null, referral_status_override: null },
+  { id: "apt-3", patient_id: "u-patient3", date: d(-2), time_slot: "14:00", location: "Parramatta Imaging",  body_part: "Brain",        status: "completed",   referral_url: "referrals/s-kowalski-brain.pdf", referring_doctor_id: null, referring_doctor_name: null, referring_doctor_practice: null, referral_reviewed: true, referral_reviewed_by: "u-tech", referral_reviewed_at: ts(-2, 13, 50), assigned_technician_id: "u-tech", assigned_radiologist_id: "u-rad", created_at: ts(-10), confirmed: true, arrival_status: "checked_in", arrived_at: ts(-2, 13, 45), checked_in_at: ts(-2, 13, 47), cancellation_reason: null, referral_status_override: null },
+  { id: "apt-4", patient_id: "u-patient",  date: d(-30),time_slot: "11:00", location: "Sydney CBD Clinic",   body_part: "Cervical Spine", status: "completed", referral_url: null, referring_doctor_id: "u-doctor", referring_doctor_name: null, referring_doctor_practice: null, referral_reviewed: false, referral_reviewed_by: null, referral_reviewed_at: null, assigned_technician_id: "u-tech", assigned_radiologist_id: "u-rad", created_at: ts(-35), confirmed: true, arrival_status: "checked_in", arrived_at: ts(-30, 10, 55), checked_in_at: ts(-30, 10, 57), cancellation_reason: null, referral_status_override: null },
+  { id: "apt-5", patient_id: "u-patient2", date: d(5),  time_slot: "15:30", location: "Chatswood Centre",    body_part: "Shoulder",     status: "scheduled",   referral_url: null, referring_doctor_id: null, referring_doctor_name: null, referring_doctor_practice: null, referral_reviewed: false, referral_reviewed_by: null, referral_reviewed_at: null, assigned_technician_id: null, assigned_radiologist_id: null, created_at: ts(-1), confirmed: false, arrival_status: "not_arrived", arrived_at: null, checked_in_at: null, cancellation_reason: null, referral_status_override: null },
+  { id: "apt-6", patient_id: "u-patient3", date: d(0),  time_slot: "11:30", location: "Sydney CBD Clinic",   body_part: "Brain",        status: "in_progress", referral_url: "referrals/s-kowalski-brain-2.pdf", referring_doctor_id: "u-doctor", referring_doctor_name: null, referring_doctor_practice: null, referral_reviewed: true, referral_reviewed_by: "u-tech", referral_reviewed_at: ts(0, 11, 15), assigned_technician_id: "u-tech", assigned_radiologist_id: "u-rad", created_at: ts(-2), confirmed: true, arrival_status: "checked_in", arrived_at: ts(0, 11, 10), checked_in_at: ts(0, 11, 12), cancellation_reason: null, referral_status_override: null },
+  { id: "apt-7", patient_id: "u-patient4", date: d(0),  time_slot: "13:00", location: "Sydney CBD Clinic",   body_part: "Abdomen",      status: "scheduled",   referral_url: null, referring_doctor_id: null, referring_doctor_name: null, referring_doctor_practice: null, referral_reviewed: false, referral_reviewed_by: null, referral_reviewed_at: null, assigned_technician_id: null, assigned_radiologist_id: null, created_at: ts(0, 8, 12), confirmed: true, arrival_status: "no_show", arrived_at: null, checked_in_at: null, cancellation_reason: null, referral_status_override: "missing" },
+  { id: "apt-8", patient_id: "u-patient5", date: d(0),  time_slot: "14:30", location: "Sydney CBD Clinic",   body_part: "Pelvis",       status: "scheduled",   referral_url: null, referring_doctor_id: null, referring_doctor_name: "Dr. Amir Hassan", referring_doctor_practice: "Elizabeth St Medical Centre", referral_reviewed: false, referral_reviewed_by: null, referral_reviewed_at: null, assigned_technician_id: null, assigned_radiologist_id: null, created_at: ts(0, 8, 22), confirmed: false, arrival_status: "not_arrived", arrived_at: null, checked_in_at: null, cancellation_reason: null, referral_status_override: "pending_verification" },
 ];
 
 // Path A: a doctor-initiated referral, created before the patient books (see
@@ -103,6 +145,10 @@ export const SEED_BILLING: Billing[] = [
   { id: "bill-1", appointment_id: "apt-4", amount: 420.0, payment_status: "paid",             payment_method: "card",      receipt_url: "receipts/bill-1.pdf", paid_at: ts(-29), insurance_claim_number: null, insurance_claim_status: "not_submitted", insurance_submitted_at: null, insurance_resolved_at: null, insurance_note: null },
   { id: "bill-2", appointment_id: "apt-3", amount: 560.0, payment_status: "insurance_review", payment_method: "insurance", receipt_url: null, paid_at: null, insurance_claim_number: "CLM-88213", insurance_claim_status: "submitted", insurance_submitted_at: ts(-1, 9, 0), insurance_resolved_at: null, insurance_note: null },
   { id: "bill-3", appointment_id: "apt-1", amount: 480.0, payment_status: "pending",          payment_method: null,        receipt_url: null, paid_at: null, insurance_claim_number: null, insurance_claim_status: "not_submitted", insurance_submitted_at: null, insurance_resolved_at: null, insurance_note: null },
+  { id: "bill-4", appointment_id: "apt-2", amount: 440.0, payment_status: "pending",          payment_method: "Medicare",  receipt_url: null, paid_at: null, insurance_claim_number: null, insurance_claim_status: "not_submitted", insurance_submitted_at: null, insurance_resolved_at: null, insurance_note: null },
+  { id: "bill-5", appointment_id: "apt-6", amount: 560.0, payment_status: "pending",          payment_method: "Private",   receipt_url: null, paid_at: null, insurance_claim_number: null, insurance_claim_status: "not_submitted", insurance_submitted_at: null, insurance_resolved_at: null, insurance_note: null },
+  { id: "bill-6", appointment_id: "apt-7", amount: 620.0, payment_status: "pending",          payment_method: null,        receipt_url: null, paid_at: null, insurance_claim_number: null, insurance_claim_status: "not_submitted", insurance_submitted_at: null, insurance_resolved_at: null, insurance_note: null },
+  { id: "bill-7", appointment_id: "apt-8", amount: 620.0, payment_status: "pending",          payment_method: null,        receipt_url: null, paid_at: null, insurance_claim_number: null, insurance_claim_status: "not_submitted", insurance_submitted_at: null, insurance_resolved_at: null, insurance_note: null },
 ];
 
 export const SEED_EQUIPMENT: EquipmentLog[] = [
@@ -235,3 +281,14 @@ export const SCAN_PRICES: Record<string, number> = {
   Brain: 560, "Cervical Spine": 420, "Lumbar Spine": 480, Shoulder: 440,
   "Right Knee": 440, "Left Knee": 440, Abdomen: 620, Pelvis: 620,
 };
+
+// Reception Portal — controlled payment-type vocabulary (Billing.payment_method
+// already accepts any string; this is what the UI offers instead of free text).
+// A constant array, same pattern as BODY_PARTS/LOCATIONS above, not a fake
+// "configurable settings screen" with nothing real behind it.
+export const PAYMENT_TYPES = ["Medicare", "Private", "DVA", "Workers Compensation", "Third Party", "Self-funded", "Other"];
+
+export const SEED_COMMUNICATION_LOG: CommunicationLog[] = [
+  { id: "comm-1", appointment_id: "apt-1", channel: "sms", purpose: "confirmation", status: "not_sent", note: "Demo mode — no SMS provider connected.", created_by: "u-reception", created_at: ts(-6, 9, 5) },
+  { id: "comm-2", appointment_id: "apt-2", channel: "email", purpose: "reminder", status: "not_sent", note: "Demo mode — no email provider connected.", created_by: "u-reception", created_at: ts(-1, 16, 0) },
+];

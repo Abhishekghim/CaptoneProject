@@ -17,9 +17,10 @@ interface StaffRow {
   created_at: string;
 }
 
-const ASSIGNABLE_ROLES: Role[] = ["technician", "radiologist", "admin", "super_admin", "referring_doctor"];
+const ASSIGNABLE_ROLES: Role[] = ["reception", "technician", "radiologist", "admin", "super_admin", "referring_doctor"];
 const ROLE_LABELS: Record<Role, string> = {
   patient: "Patient",
+  reception: "Reception",
   technician: "Technician",
   radiologist: "Radiologist",
   admin: "Admin",

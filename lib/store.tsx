@@ -290,8 +290,8 @@ if (insertError) {
           prev.map((r) => (r.id === referral.id ? { ...r, used_in_appointment_id: apt.id } : r))
         );
       }
-      //writeAudit(currentUser, "APPOINTMENT_BOOKED", "appointments", `${body_part} — ${location} on ${date} ${time_slot}`);
-      //pushNotification(currentUser.id, "appointment_booked", "Appointment booked", `${body_part} MRI — ${location} on ${date} at ${time_slot}.`);
+      writeAudit(currentUser, "APPOINTMENT_BOOKED", "appointments", `${body_part} — ${location} on ${date} ${time_slot}`);
+      pushNotification(currentUser.id, "appointment_booked", "Appointment booked", `${body_part} MRI — ${location} on ${date} at ${time_slot}.`);
       return { ok: true };
     },
     [appointments, currentUser, doctorReferrals, scanPrices, writeAudit, pushNotification]

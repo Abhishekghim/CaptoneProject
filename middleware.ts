@@ -1,8 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Routes reachable without a session. "/" is the public marketing page —
-// unlike the other three, a signed-in user is NOT bounced away from it.
+
 const NO_AUTH_REQUIRED = ["/", "/login", "/signup", "/forgot-password", "/reset-password", "/request-doctor-access", "/privacy", "/terms"];
 // A signed-in user hitting one of these gets sent to their dashboard instead.
 const AUTH_ONLY_PAGES = ["/login", "/signup"];
@@ -10,9 +9,7 @@ const AUTH_ONLY_PAGES = ["/login", "/signup"];
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // API routes return their own JSON errors and manage their own
-  // authorization (see app/api/assistant/route.ts) — never redirect them to
-  // an HTML login page, that would break every fetch() caller.
+  
   if (pathname.startsWith("/api/")) {
     return NextResponse.next();
   }
@@ -40,8 +37,7 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // IMPORTANT: getUser() re-validates the session against Supabase Auth on
-  // every request — never trust the cookie payload alone for route gating.
+  
   const {
     data: { user },
   } = await supabase.auth.getUser();

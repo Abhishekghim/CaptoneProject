@@ -1,5 +1,5 @@
 "use client";
-
+import { createClient } from "@/lib/supabase/client";
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import {
   SEED_ANNOTATIONS, SEED_ANNOUNCEMENTS, SEED_APPOINTMENTS, SEED_AUDIT, SEED_BILLING,
@@ -62,7 +62,7 @@ interface Store {
     referralFileName: string | null; referringDoctorId: string | null;
     referringDoctorName: string | null; referringDoctorPractice: string | null;
     usingReferralId?: string | null;
-  }) => { ok: boolean; error?: string };
+  }) => Promise<{ ok: boolean; error?: string }>;
   cancelAppointment: (id: string) => void;
   // Reschedules any appointment to a new date/time/location, re-checking for
   // slot clashes exactly like bookAppointment. Used by patients (FR47, their
@@ -214,7 +214,8 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
   }, []);
 
   const bookAppointment: Store["bookAppointment"] = useCallback(
-    ({ date, time_slot, location, body_part, referralFileName: referralPath, referringDoctorId, referringDoctorName, referringDoctorPractice, usingReferralId }) => {
+    async ({ date, time_slot, location, body_part, referralFileName: referralPath, referringDoctorId, referringDoctorName, referringDoctorPractice, usingReferralId }) => {
+     const supabase = createClient();
       const clash = appointments.some(
         (a) => a.date === date && a.time_slot === time_slot && a.location === location && a.status !== "cancelled"
       );
@@ -245,6 +246,27 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
         assigned_radiologist_id: null,
         created_at: new Date().toISOString(),
       };
+      const { error: insertError } = await supabase
+  .from("appointments")
+  .insert({
+    patient_id: currentUser.id,
+    date,
+    time_slot,
+    location,
+    body_part,
+    status: "scheduled",
+    referral_url: referralPath ?? null,
+    referring_doctor_id:
+  finalReferringDoctorId?.startsWith("u-") ? null : finalReferringDoctorId ?? null,
+  });
+
+if (insertError) {
+  console.error("Failed to save appointment:", insertError);
+  return {
+    ok: false,
+    error: "Unable to save the appointment. Please try again.",
+  };
+}
       setAppointments((prev) => [apt, ...prev]);
       setBilling((prev) => [
         {
@@ -268,8 +290,8 @@ export function StoreProvider({ profile, children }: { profile: Profile; childre
           prev.map((r) => (r.id === referral.id ? { ...r, used_in_appointment_id: apt.id } : r))
         );
       }
-      writeAudit(currentUser, "APPOINTMENT_BOOKED", "appointments", `${body_part} — ${location} on ${date} ${time_slot}`);
-      pushNotification(currentUser.id, "appointment_booked", "Appointment booked", `${body_part} MRI — ${location} on ${date} at ${time_slot}.`);
+      //writeAudit(currentUser, "APPOINTMENT_BOOKED", "appointments", `${body_part} — ${location} on ${date} ${time_slot}`);
+      //pushNotification(currentUser.id, "appointment_booked", "Appointment booked", `${body_part} MRI — ${location} on ${date} at ${time_slot}.`);
       return { ok: true };
     },
     [appointments, currentUser, doctorReferrals, scanPrices, writeAudit, pushNotification]

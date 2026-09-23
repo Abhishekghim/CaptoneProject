@@ -578,7 +578,7 @@ function BookingCard() {
       referralPath = uploaded.path;
     }
 
-    const result = store.bookAppointment({
+    const result = await store.bookAppointment({
       date, time_slot: slot, location, body_part: bodyPart, referralFileName: referralPath,
       referringDoctorId: usingOtherDoctor || !referringDoctorId ? null : referringDoctorId,
       referringDoctorName: usingOtherDoctor ? otherDoctorName.trim() || null : null,

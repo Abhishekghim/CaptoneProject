@@ -33,18 +33,14 @@ function LoginForm() {
       const trimmed = identifier.trim();
 
       // supabase.auth.signInWithPassword() only accepts an email, so a
-      // non-email identifier needs resolving to one first. Deliberately the
-      // *same* generic error either way below — a distinct "no such
-      // username" message would let someone enumerate valid usernames.
+      
       let email = trimmed;
       if (!trimmed.includes("@")) {
         const { data: resolvedEmail, error: rpcError } = await supabase.rpc("get_email_for_username", {
           p_username: trimmed,
         });
         if (rpcError || !resolvedEmail) {
-          // Logged under the typed identifier, not a resolved email — there
-          // isn't one yet, and this still lets a real account being brute-
-          // forced by username show up in the admin's security alerts.
+         
           await supabase.rpc("log_failed_login", { p_email: trimmed, p_detail: "unknown username" });
           setError(GENERIC_ERROR);
           return;
@@ -54,8 +50,7 @@ function LoginForm() {
 
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) {
-        // NFR10 — recorded via a security-definer RPC since there's no
-        // session yet to write through normal RLS-gated tables.
+       
         await supabase.rpc("log_failed_login", { p_email: email, p_detail: "invalid credentials" });
         setError(GENERIC_ERROR);
         return;

@@ -221,6 +221,7 @@ export function TodaysScheduleTable({
                             radiologists={radiologists}
                             onDone={() => setManagingId(null)}
                             onSaved={onChanged}
+                            canAssignRadiologist={false}
                           />
                         </td>
                       </tr>

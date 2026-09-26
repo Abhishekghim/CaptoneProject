@@ -21,9 +21,9 @@ export default function TermsPage() {
           </div>
 
           <Section title="The service">
-            Capital Radiology's online portal lets patients book MRI appointments, manage their health profile,
+            Capital Radiology&apos;s online portal lets patients book MRI appointments, manage their health profile,
             view results and billing, and communicate with clinic staff; it lets referring doctors track
-            referrals and view their patients' reports; and it lets clinic staff manage scans, reports,
+            referrals and view their patients&apos; reports; and it lets clinic staff manage scans, reports,
             equipment, and operations.
           </Section>
 

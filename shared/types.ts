@@ -13,6 +13,11 @@ export interface Profile {
   phone?: string;
   username?: string | null;
   created_at: string;
+  // Stripe Customer id for the staff-initiated Invoicing flow
+  // (backend/database/032_stripe_invoicing.sql) — set the first time staff
+  // send this patient a formal invoice (app/api/payments/invoice), reused on
+  // every subsequent one. Null for patients who have never been invoiced.
+  stripe_customer_id?: string | null;
 }
 
 export interface Contraindications {
@@ -171,6 +176,17 @@ export interface Billing {
   insurance_submitted_at: string | null;
   insurance_resolved_at: string | null;
   insurance_note: string | null;
+  // Online card payment via Stripe Checkout (backend/database/031_stripe_payments.sql)
+  // — set by app/api/payments/checkout (session id) and
+  // app/api/webhooks/stripe (payment intent id, once the card charge is
+  // confirmed). Both null for bills paid via the existing manual/in-person
+  // flow (AdminDashboard.tsx markPaid) or not yet paid at all.
+  stripe_checkout_session_id: string | null;
+  stripe_payment_intent_id: string | null;
+  // Staff-initiated Stripe Invoicing (backend/database/032_stripe_invoicing.sql)
+  // — set by app/api/payments/invoice once the invoice is finalized and
+  // emailed to the patient. Null for bills never formally invoiced.
+  stripe_invoice_id: string | null;
 }
 
 export interface EquipmentLog {
@@ -181,16 +197,6 @@ export interface EquipmentLog {
   last_calibration: string;
   maintenance_due: string;
   usage_hours: number;
-}
-
-export interface AuditLog {
-  id: number;
-  user_id: string | null;
-  user_name: string;
-  action: string;
-  entity: string;
-  details: string;
-  timestamp: string;
 }
 
 export interface Notification {
@@ -327,39 +333,3 @@ export interface ContentPage {
   updated_by: string;
 }
 
-export interface Announcement {
-  id: string;
-  title: string;
-  message: string;
-  active: boolean;
-  created_at: string;
-}
-
-export interface PrepInstruction {
-  body_part: string;
-  instructions: string;
-  updated_at: string;
-}
-
-// ----------------------------------------------------------------------------
-// Reception Portal — patient communications log
-// ----------------------------------------------------------------------------
-// Deliberately never claims a message was actually delivered — there is no
-// SMS/email provider wired into this project (see frontend/lib/receiptPdf.ts
-// and similar for the project's existing "real artifact, no fake success
-// state" pattern). Every entry is created with status "not_sent"; the UI
-// labels this as demo mode rather than pretending otherwise.
-export type CommunicationChannel = "sms" | "email" | "phone";
-export type CommunicationPurpose = "confirmation" | "reminder" | "cancellation" | "reschedule" | "general";
-export type CommunicationStatus = "not_sent" | "queued" | "failed";
-
-export interface CommunicationLog {
-  id: string;
-  appointment_id: string;
-  channel: CommunicationChannel;
-  purpose: CommunicationPurpose;
-  status: CommunicationStatus;
-  note: string | null;
-  created_by: string;
-  created_at: string;
-}

@@ -2,7 +2,7 @@
 
 import { createClient } from "./supabase/client";
 
-export type StorageBucket = "referrals" | "dicom";
+export type StorageBucket = "referrals" | "dicom" | "receipts";
 
 /**
  * Uploads a real file to a real Supabase Storage bucket (buckets + RLS

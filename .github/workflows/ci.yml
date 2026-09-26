@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Dummy-but-realistic values for the env vars the app reads at build/runtime
+# (see .env.local.example). NEXT_PUBLIC_SUPABASE_URL/ANON_KEY aren't strictly
+# required for `next build` to succeed today — frontend/lib/supabase/client.ts
+# and backend/lib/supabase/server.ts only throw when their createClient() is
+# actually *called*, not at import time, and no page currently calls one
+# during static generation — but they're set anyway so CI doesn't silently
+# start failing the moment a future page does call one at build time.
+# SUPABASE_SERVICE_ROLE_KEY / RESEND_API_KEY / STRIPE_* are consulted only at
+# request time (route handlers, notification senders), never at build time.
+# No TWILIO_* here — outbound SMS notifications were removed; the only
+# remaining Twilio integration (phone verification) is configured entirely
+# in the Supabase Dashboard, not via env vars this app reads.
+env:
+  NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+  SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+  OPENAI_API_KEY: ci-placeholder-openai-key
+  RESEND_API_KEY: ci-placeholder-resend-key
+  NOTIFICATIONS_FROM_EMAIL: "Capital Radiology <notifications@capitalradiology.example>"
+  STRIPE_SECRET_KEY: ci-placeholder-stripe-key
+  STRIPE_WEBHOOK_SECRET: ci-placeholder-stripe-webhook-secret
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build

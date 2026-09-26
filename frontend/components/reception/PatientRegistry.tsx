@@ -3,11 +3,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { AlertTriangle, CalendarClock, Search, UserPlus } from "lucide-react";
-import { useStore } from "@/frontend/lib/store";
-import { BODY_PARTS, LOCATIONS, PAYMENT_TYPES, TIME_SLOTS } from "@/frontend/lib/seed";
+import { BODY_PARTS, LOCATIONS, PAYMENT_TYPES, TIME_SLOTS } from "@/frontend/lib/constants";
 import { AppointmentCalendar } from "@/frontend/components/shared/Calendar";
 import { EmptyState, SectionTitle, StatusChip } from "@/frontend/components/shared/ui";
-import type { Profile } from "@/shared/types";
+import { createClient } from "@/frontend/lib/supabase/client";
+import { notifyPatient } from "@/frontend/lib/notify";
+import { useProfiles, type ProfileRow } from "@/frontend/lib/hooks/useProfiles";
+import { useMedicalRecords, type MedicalRecordRow } from "@/frontend/lib/hooks/useMedicalRecords";
+import { useAppointments } from "@/frontend/lib/hooks/useAppointments";
+import { useScanPrices } from "@/frontend/lib/hooks/useScanPrices";
+import type { Appointment } from "@/shared/types";
 
 const SEX_OPTIONS = ["Female", "Male", "Non-binary", "Prefer not to say"];
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -16,31 +21,35 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_PATTERN = /^(\+?61|0)[\d ]{8,11}$/;
 
 export default function PatientRegistry({ initialPatientId }: { initialPatientId: string | null }) {
-  const store = useStore();
   const [query, setQuery] = useState("");
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(initialPatientId);
   const [showRegister, setShowRegister] = useState(false);
+
+  const { data: profiles, loadError: profilesLoadError, reload: reloadProfiles } = useProfiles();
+  const { data: records, loadError: recordsLoadError, reload: reloadRecords } = useMedicalRecords();
+  const { data: appointments, loadError: aptLoadError, reload: reloadAppointments } = useAppointments();
 
   useEffect(() => {
     if (initialPatientId) setSelectedPatientId(initialPatientId);
   }, [initialPatientId]);
 
-  const patients = store.profiles.filter((p) => p.role === "patient");
+  const patients = (profiles ?? []).filter((p) => p.role === "patient");
 
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase().replace(/\s+/g, "");
     if (!needle) return [];
     return patients
       .filter((p) => {
-        const record = store.records.find((r) => r.patient_id === p.id);
+        const record = (records ?? []).find((r) => r.patient_id === p.id);
         const haystacks = [p.full_name, p.email, p.phone ?? "", record?.patient_code ?? "", record?.dob ?? ""]
           .map((s) => s.toLowerCase().replace(/\s+/g, ""));
         return haystacks.some((h) => h.includes(needle));
       })
       .slice(0, 20);
-  }, [query, patients, store.records]);
+  }, [query, patients, records]);
 
   const selectedPatient = selectedPatientId ? patients.find((p) => p.id === selectedPatientId) ?? null : null;
+  const loadError = profilesLoadError || recordsLoadError || aptLoadError;
 
   return (
     <div className="space-y-6">
@@ -55,9 +64,20 @@ export default function PatientRegistry({ initialPatientId }: { initialPatientId
             </button>
           }
         />
+        {loadError && (
+          <p role="alert" className="mb-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            Could not load patient data: {loadError}
+          </p>
+        )}
         {showRegister && (
           <RegisterPatientForm
-            onRegistered={(id) => { setSelectedPatientId(id); setShowRegister(false); setQuery(""); }}
+            onRegistered={(id) => {
+              setSelectedPatientId(id);
+              setShowRegister(false);
+              setQuery("");
+              reloadProfiles();
+              reloadRecords();
+            }}
             onCancel={() => setShowRegister(false)}
           />
         )}
@@ -72,7 +92,7 @@ export default function PatientRegistry({ initialPatientId }: { initialPatientId
           ) : (
             <ul className="mt-3 divide-y divide-slate-100">
               {results.map((p) => {
-                const record = store.records.find((r) => r.patient_id === p.id);
+                const record = (records ?? []).find((r) => r.patient_id === p.id);
                 return (
                   <li key={p.id}>
                     <button
@@ -95,14 +115,21 @@ export default function PatientRegistry({ initialPatientId }: { initialPatientId
         )}
       </section>
 
-      {selectedPatient && <PatientProfile patient={selectedPatient} />}
+      {selectedPatient && (
+        <PatientProfile
+          patient={selectedPatient}
+          profiles={profiles ?? []}
+          appointments={appointments ?? []}
+          record={(records ?? []).find((r) => r.patient_id === selectedPatient.id) ?? null}
+          onAppointmentBooked={reloadAppointments}
+        />
+      )}
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
 function RegisterPatientForm({ onRegistered, onCancel }: { onRegistered: (patientId: string) => void; onCancel: () => void }) {
-  const store = useStore();
   const [fullName, setFullName] = useState("");
   const [dob, setDob] = useState("");
   const [sex, setSex] = useState("");
@@ -117,6 +144,7 @@ function RegisterPatientForm({ onRegistered, onCancel }: { onRegistered: (patien
   const [medicareExpiry, setMedicareExpiry] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [duplicates, setDuplicates] = useState<{ id: string; full_name: string; dob: string; phone?: string }[] | null>(null);
+  const [busy, setBusy] = useState(false);
 
   function validate(): string | null {
     if (!fullName.trim()) return "Full name is required.";
@@ -127,7 +155,7 @@ function RegisterPatientForm({ onRegistered, onCancel }: { onRegistered: (patien
     return null;
   }
 
-  function submit(e: React.FormEvent, forceCreate = false) {
+  async function submit(e: React.FormEvent, forceCreate = false) {
     e.preventDefault();
     const validationError = validate();
     if (validationError) {
@@ -135,18 +163,34 @@ function RegisterPatientForm({ onRegistered, onCancel }: { onRegistered: (patien
       return;
     }
     setError(null);
-    const result = store.registerPatient({
-      fullName, dob, sex: sex || null, preferredName: preferredName.trim() || null,
-      phone: phone.trim(), email: email.trim(),
-      address: address.trim() || null, suburb: suburb.trim() || null, state: state || null, postcode: postcode.trim() || null,
-      medicareNumber: medicareNumber.trim() || null, medicareExpiry: medicareExpiry || null,
-      forceCreate,
-    });
-    if (!result.ok) {
-      setDuplicates(result.possibleDuplicates);
-      return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/reception/patients/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName, dob, sex: sex || null, preferredName: preferredName.trim() || null,
+          phone: phone.trim(), email: email.trim(),
+          address: address.trim() || null, suburb: suburb.trim() || null, state: state || null, postcode: postcode.trim() || null,
+          medicareNumber: medicareNumber.trim() || null, medicareExpiry: medicareExpiry || null,
+          forceCreate,
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        setError(result.error || "Could not register this patient.");
+        return;
+      }
+      if (!result.ok) {
+        setDuplicates(result.possibleDuplicates);
+        return;
+      }
+      onRegistered(result.patientId as string);
+    } catch {
+      setError("Network error — please try again.");
+    } finally {
+      setBusy(false);
     }
-    onRegistered(result.patientId as string);
   }
 
   if (duplicates) {
@@ -169,8 +213,8 @@ function RegisterPatientForm({ onRegistered, onCancel }: { onRegistered: (patien
           ))}
         </ul>
         <div className="mt-3 flex gap-2">
-          <button type="button" className="btn-primary text-xs" onClick={(e) => submit(e, true)}>Create new patient anyway</button>
-          <button type="button" className="btn-ghost text-xs" onClick={() => setDuplicates(null)}>Back to form</button>
+          <button type="button" disabled={busy} className="btn-primary text-xs" onClick={(e) => submit(e, true)}>{busy ? "Creating…" : "Create new patient anyway"}</button>
+          <button type="button" disabled={busy} className="btn-ghost text-xs" onClick={() => setDuplicates(null)}>Back to form</button>
         </div>
       </div>
     );
@@ -246,21 +290,27 @@ function RegisterPatientForm({ onRegistered, onCancel }: { onRegistered: (patien
       {error && <p role="alert" className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
       <div className="flex gap-2">
-        <button type="submit" className="btn-primary text-xs">Register patient</button>
-        <button type="button" className="btn-ghost text-xs" onClick={onCancel}>Cancel</button>
+        <button type="submit" disabled={busy} className="btn-primary text-xs">{busy ? "Registering…" : "Register patient"}</button>
+        <button type="button" disabled={busy} className="btn-ghost text-xs" onClick={onCancel}>Cancel</button>
       </div>
     </form>
   );
 }
 
 /* ------------------------------------------------------------------ */
-function PatientProfile({ patient }: { patient: Profile }) {
-  const store = useStore();
+function PatientProfile({
+  patient, profiles, appointments, record, onAppointmentBooked,
+}: {
+  patient: ProfileRow;
+  profiles: ProfileRow[];
+  appointments: Appointment[];
+  record: MedicalRecordRow | null;
+  onAppointmentBooked: () => void;
+}) {
   const [showBook, setShowBook] = useState(false);
-  const record = store.records.find((r) => r.patient_id === patient.id);
-  const appointments = store.appointments.filter((a) => a.patient_id === patient.id).sort((a, b) => (a.date < b.date ? 1 : -1));
-  const upcoming = appointments.filter((a) => a.status === "scheduled" && a.date >= format(new Date(), "yyyy-MM-dd"));
-  const past = appointments.filter((a) => !upcoming.includes(a));
+  const patientAppointments = appointments.filter((a) => a.patient_id === patient.id).sort((a, b) => (a.date < b.date ? 1 : -1));
+  const upcoming = patientAppointments.filter((a) => a.status === "scheduled" && a.date >= format(new Date(), "yyyy-MM-dd"));
+  const past = patientAppointments.filter((a) => !upcoming.includes(a));
 
   return (
     <section className="card space-y-6 p-5 sm:p-6">
@@ -302,7 +352,16 @@ function PatientProfile({ patient }: { patient: Profile }) {
         </div>
       </div>
 
-      {showBook && <BookForPatientForm patientId={patient.id} onDone={() => setShowBook(false)} />}
+      {showBook && (
+        <BookForPatientForm
+          patientId={patient.id}
+          appointments={appointments}
+          onDone={() => {
+            setShowBook(false);
+            onAppointmentBooked();
+          }}
+        />
+      )}
 
       <div>
         <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Appointment history</p>
@@ -311,7 +370,7 @@ function PatientProfile({ patient }: { patient: Profile }) {
         ) : (
           <ul className="divide-y divide-slate-100">
             {past.map((a) => {
-              const referring = a.referring_doctor_id ? store.profiles.find((p) => p.id === a.referring_doctor_id)?.full_name : a.referring_doctor_name;
+              const referring = a.referring_doctor_id ? profiles.find((p) => p.id === a.referring_doctor_id)?.full_name : a.referring_doctor_name;
               return (
                 <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                   <span>{format(parseISO(a.date), "d MMM yyyy")} — {a.body_part} — {a.location}{referring && ` — referred by ${referring}`}</span>
@@ -327,8 +386,14 @@ function PatientProfile({ patient }: { patient: Profile }) {
 }
 
 /* ------------------------------------------------------------------ */
-function BookForPatientForm({ patientId, onDone }: { patientId: string; onDone: () => void }) {
-  const store = useStore();
+function BookForPatientForm({
+  patientId, appointments, onDone,
+}: {
+  patientId: string;
+  appointments: Appointment[];
+  onDone: () => void;
+}) {
+  const { data: scanPrices } = useScanPrices();
   const [bodyPart, setBodyPart] = useState(BODY_PARTS[0]);
   const [location, setLocation] = useState(LOCATIONS[0]);
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -336,23 +401,40 @@ function BookForPatientForm({ patientId, onDone }: { patientId: string; onDone: 
   const [paymentType, setPaymentType] = useState(PAYMENT_TYPES[0]);
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
 
-  const takenSlots = store.appointments
+  const takenSlots = appointments
     .filter((a) => a.date === date && a.location === location && a.status !== "cancelled")
     .map((a) => a.time_slot);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const result = store.bookAppointment({
-      date, time_slot: slot, location, body_part: bodyPart,
-      referralFileName: null, referringDoctorId: null, referringDoctorName: null, referringDoctorPractice: null,
-      patientId, paymentType,
+    const supabase = createClient();
+    const { data, error } = await supabase.rpc("book_appointment", {
+      p_patient_id: patientId,
+      p_date: date,
+      p_time_slot: slot,
+      p_location: location,
+      p_body_part: bodyPart,
+      p_referring_doctor_id: null,
+      p_referring_doctor_name: null,
+      p_referring_doctor_practice: null,
+      p_referral_url: null,
+      p_amount: (scanPrices ?? {})[bodyPart] ?? 480,
+      p_payment_type: paymentType,
+      p_referral_id: null,
     });
-    if (result.ok) {
-      setFeedback({ ok: true, text: "Appointment booked." });
-      setTimeout(onDone, 900);
-    } else {
-      setFeedback({ ok: false, text: result.error ?? "Could not book this appointment." });
+    if (error) {
+      setFeedback({ ok: false, text: error.message ?? "Could not book this appointment." });
+      return;
     }
+    setFeedback({ ok: true, text: "Appointment booked." });
+    notifyPatient(
+      patientId,
+      "appointment_booked",
+      "Appointment booked",
+      `<p>${bodyPart} MRI — ${location} on ${date} at ${slot}.</p>`,
+      data.id
+    );
+    setTimeout(onDone, 900);
   }
 
   return (

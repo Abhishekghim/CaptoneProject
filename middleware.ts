@@ -3,7 +3,12 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Routes reachable without a session. "/" is the public marketing page —
 // unlike the other three, a signed-in user is NOT bounced away from it.
-const NO_AUTH_REQUIRED = ["/", "/login", "/signup", "/forgot-password", "/reset-password", "/request-doctor-access", "/privacy", "/terms"];
+// "/auth/callback" must be here too: it's the OAuth redirect target
+// (app/auth/callback/route.ts) that EXCHANGES the code for a session — the
+// visitor is necessarily still unauthenticated when this request arrives,
+// so gating it like a protected page bounces every Google sign-in straight
+// back to /login before the exchange can ever run.
+const NO_AUTH_REQUIRED = ["/", "/login", "/signup", "/forgot-password", "/reset-password", "/request-doctor-access", "/privacy", "/terms", "/auth/callback"];
 // A signed-in user hitting one of these gets sent to their dashboard instead.
 const AUTH_ONLY_PAGES = ["/login", "/signup"];
 

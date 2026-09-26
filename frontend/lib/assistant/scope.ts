@@ -1,9 +1,11 @@
 import { format } from "date-fns";
 import type {
-  Appointment, Billing, EquipmentLog, MedicalRecord, MriScan, Profile, RadiologyReport,
+  Appointment, Billing, EquipmentLog, MriScan, Profile, RadiologyReport,
 } from "@/shared/types";
 import type { AssistantRole } from "@/shared/assistant/types";
-import { deriveReferralStatus } from "@/frontend/lib/store";
+import { deriveReferralStatus } from "@/shared/deriveReferralStatus";
+import type { ProfileRow } from "@/frontend/lib/hooks/useProfiles";
+import type { MedicalRecordRow } from "@/frontend/lib/hooks/useMedicalRecords";
 
 export interface AssistantContext {
   role: AssistantRole;
@@ -11,9 +13,9 @@ export interface AssistantContext {
 }
 
 // Per-role scope resolver for the assistant. This is deliberately built to
-// mirror the exact filtering each role's dashboard already uses (see
-// PatientDashboard / TechnicianPortal / RadiologistWorkspace /
-// ReferringDoctorPortal / AdminDashboard) — the assistant must never be able
+// mirror the exact filtering each role's dashboard already uses (see the
+// patient dashboard pages under app/(app)/dashboard/* / TechnicianPortal /
+// RadiologistWorkspace / ReferringDoctorPortal / AdminDashboard) — the assistant must never be able
 // to see more than that user's own dashboard already shows them. For admin
 // it's intentionally narrower than the dashboard: aggregate counts only, no
 // patient names or content, per the product's explicit rule for that role.
@@ -32,14 +34,21 @@ export interface AssistantContext {
 // its role. Until then, treat this as UI-layer scoping only, matching the
 // rest of the app's current security posture.
 
+// profiles/records use the real hooks' row types (ProfileRow / MedicalRecordRow
+// from frontend/lib/hooks/) rather than shared/types.ts's Profile/MedicalRecord —
+// those hook types mirror the actual DB columns (e.g. ProfileRow adds
+// is_active; MedicalRecordRow's history/patient_code/emergency_contact fields
+// are nullable) and are what Shell.tsx now actually has on hand. Every field
+// the per-role builders below read (dob, contraindications, full_name, ...)
+// exists on both shapes, so this widening doesn't change any of that logic.
 export interface StoreSnapshot {
   currentUser: Profile;
-  profiles: Profile[];
+  profiles: ProfileRow[];
   appointments: Appointment[];
   scans: MriScan[];
   reports: RadiologyReport[];
   billing: Billing[];
-  records: MedicalRecord[];
+  records: MedicalRecordRow[];
   equipment: EquipmentLog[];
 }
 

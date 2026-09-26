@@ -3,7 +3,7 @@
 import React, { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Activity, LogIn } from "lucide-react";
+import { Activity, LogIn, Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/frontend/lib/supabase/client";
 
 export default function LoginPage() {
@@ -21,12 +21,34 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(
     searchParams.get("reason") === "deactivated"
       ? "This account has been deactivated. Contact an administrator."
+      : searchParams.get("error") === "oauth_failed"
+      ? "Google sign-in failed. Please try again."
       : null
   );
   const [submitting, setSubmitting] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  async function handleGoogleSignIn() {
+    setError(null);
+    setGoogleLoading(true);
+    const supabase = createClient();
+    const redirectTo = searchParams.get("redirectTo") || "/dashboard";
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`,
+      },
+    });
+    if (oauthError) {
+      setError(oauthError.message || "Could not start Google sign-in. Please try again.");
+      setGoogleLoading(false);
+    }
+    // On success the browser navigates away to Google — nothing left to do here.
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -136,15 +158,25 @@ function LoginForm() {
                   Forgot password?
                 </a>
               </div>
-              <input
-                id="password"
-                type="password"
-                required
-                autoComplete="current-password"
-                className="input w-full"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  autoComplete="current-password"
+                  className="input w-full pr-10"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600"
+                >
+                  {showPassword ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
+                </button>
+              </div>
             </div>
 
             {error && (
@@ -158,6 +190,22 @@ function LoginForm() {
               {submitting ? "Signing in…" : "Sign in"}
             </button>
           </form>
+
+          <div className="my-5 flex items-center gap-3">
+            <div className="h-px flex-1 bg-slate-200" />
+            <span className="text-xs text-slate-400">or</span>
+            <div className="h-px flex-1 bg-slate-200" />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={googleLoading}
+            className="flex w-full items-center justify-center gap-2.5 rounded-md border border-slate-300 bg-white py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+          >
+            <GoogleIcon />
+            {googleLoading ? "Redirecting…" : "Continue with Google"}
+          </button>
 
           <p className="mt-5 text-center text-sm text-slate-500">
             New patient?{" "}
@@ -174,5 +222,16 @@ function LoginForm() {
         </div>
       </div>
     </div>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden>
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.9 6 29.7 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z" />
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.9 6 29.7 4 24 4c-7.6 0-14.1 4.3-17.7 10.7z" />
+      <path fill="#4CAF50" d="M24 44c5.6 0 10.7-2.1 14.5-5.6l-6.7-5.7C29.7 34.7 27 35.7 24 35.7c-5.2 0-9.6-3.3-11.3-7.9l-6.6 5.1C9.8 39.6 16.3 44 24 44z" />
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.7 5.7C41.9 36 44 30.6 44 24c0-1.3-.1-2.7-.4-3.5z" />
+    </svg>
   );
 }

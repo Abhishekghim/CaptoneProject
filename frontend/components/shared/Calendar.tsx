@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isBefore,
   isSameDay, isSameMonth, startOfMonth, startOfToday, startOfWeek, subMonths,
 } from "date-fns";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 
 function parseDateOnly(value: string): Date {
   const [y, m, day] = value.split("-").map(Number);
@@ -107,6 +107,77 @@ export function AppointmentCalendar({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Compact field showing the selected date, opening AppointmentCalendar's
+ * month grid as a popover on click instead of rendering it inline/always
+ * expanded — same date-selection behavior, far less vertical space.
+ */
+export function DatePickerField({
+  value,
+  onChange,
+  minDate = startOfToday(),
+  busyDates = {},
+  label = "Choose a date",
+}: {
+  value: string; // yyyy-MM-dd
+  onChange: (date: string) => void;
+  minDate?: Date;
+  busyDates?: Record<string, number>;
+  label?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [open]);
+
+  const selected = parseDateOnly(value);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={label}
+        className="input flex w-full items-center justify-between gap-2 text-left"
+      >
+        <span>{format(selected, "EEE d MMM yyyy")}</span>
+        <CalendarIcon size={16} className="shrink-0 text-slate-400" aria-hidden />
+      </button>
+      {open && (
+        <div className="absolute z-20 mt-1 w-72 max-w-[calc(100vw-2rem)]">
+          <AppointmentCalendar
+            value={value}
+            onChange={(d) => {
+              onChange(d);
+              setOpen(false);
+            }}
+            minDate={minDate}
+            busyDates={busyDates}
+          />
+        </div>
+      )}
     </div>
   );
 }

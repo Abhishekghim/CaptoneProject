@@ -63,3 +63,61 @@ export async function requireSuperAdmin() {
 
   return { supabase, admin: profile as { id: string; role: "super_admin"; full_name: string } } as const;
 }
+
+/**
+ * Guard for Route Handlers that just need "any signed-in user," regardless
+ * of role — e.g. the notification-send endpoint, which any authenticated
+ * caller (patient or staff) may trigger about an action they just performed
+ * (their own booking confirmation, a staff member recording a payment,
+ * etc). Same re-validate-against-Supabase-Auth pattern as the other guards,
+ * without a role check.
+ */
+export async function requireUser() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: NextResponse.json({ error: "Not authenticated." }, { status: 401 }) } as const;
+  }
+
+  return { supabase, user } as const;
+}
+
+/**
+ * Guard for staff-only Route Handlers (e.g. reception/technician/radiologist
+ * shared endpoints). Mirrors is_staff() in backend/database/010_reception_role.sql:
+ * technician, radiologist, admin, super_admin, and reception all count as
+ * staff. Same re-validate-against-Supabase-Auth pattern as requireAdmin/
+ * requireSuperAdmin above.
+ */
+export async function requireStaff() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: NextResponse.json({ error: "Not authenticated." }, { status: 401 }) } as const;
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, role, full_name")
+    .eq("id", user.id)
+    .single();
+
+  const STAFF_ROLES = ["technician", "radiologist", "admin", "super_admin", "reception"] as const;
+
+  if (!profile || !STAFF_ROLES.includes(profile.role as (typeof STAFF_ROLES)[number])) {
+    return { error: NextResponse.json({ error: "Staff access required." }, { status: 403 }) } as const;
+  }
+
+  return {
+    supabase,
+    admin: profile as { id: string; role: (typeof STAFF_ROLES)[number]; full_name: string },
+  } as const;
+}

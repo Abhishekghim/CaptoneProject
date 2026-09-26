@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Activity, UserPlus } from "lucide-react";
+import { Activity, UserPlus, Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/frontend/lib/supabase/client";
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,24}$/;
@@ -22,10 +22,35 @@ export default function SignupPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Google sign-up needs no username/password step, but the health-data
+  // consent checkbox is required regardless of how the account is created —
+  // gate the button on it rather than skipping consent for this path.
+  async function handleGoogleSignUp() {
+    if (!consent) {
+      setError("Please confirm you consent to the collection and storage of your health data to continue.");
+      return;
+    }
+    setError(null);
+    setGoogleLoading(true);
+    const supabase = createClient();
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent("/dashboard")}&consent=true`,
+      },
+    });
+    if (oauthError) {
+      setError(oauthError.message || "Could not start Google sign-up. Please try again.");
+      setGoogleLoading(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -182,16 +207,26 @@ export default function SignupPage() {
               <label htmlFor="password" className="mb-1 block text-xs font-semibold text-slate-600">
                 Password
               </label>
-              <input
-                id="password"
-                type="password"
-                required
-                minLength={8}
-                autoComplete="new-password"
-                className="input w-full"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                  className="input w-full pr-10"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600"
+                >
+                  {showPassword ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
+                </button>
+              </div>
             </div>
 
             <label className="flex items-start gap-2 text-xs text-slate-600">
@@ -227,6 +262,23 @@ export default function SignupPage() {
             </button>
           </form>
 
+          <div className="my-5 flex items-center gap-3">
+            <div className="h-px flex-1 bg-slate-200" />
+            <span className="text-xs text-slate-400">or</span>
+            <div className="h-px flex-1 bg-slate-200" />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGoogleSignUp}
+            disabled={googleLoading}
+            title={!consent ? "Check the consent box above first" : undefined}
+            className="flex w-full items-center justify-center gap-2.5 rounded-md border border-slate-300 bg-white py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+          >
+            <GoogleIcon />
+            {googleLoading ? "Redirecting…" : "Continue with Google"}
+          </button>
+
           <p className="mt-5 text-center text-sm text-slate-500">
             Already have an account?{" "}
             <a href="/login" className="font-semibold text-medical hover:underline">
@@ -236,5 +288,16 @@ export default function SignupPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden>
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.9 6 29.7 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z" />
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.9 6 29.7 4 24 4c-7.6 0-14.1 4.3-17.7 10.7z" />
+      <path fill="#4CAF50" d="M24 44c5.6 0 10.7-2.1 14.5-5.6l-6.7-5.7C29.7 34.7 27 35.7 24 35.7c-5.2 0-9.6-3.3-11.3-7.9l-6.6 5.1C9.8 39.6 16.3 44 24 44z" />
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.7 5.7C41.9 36 44 30.6 44 24c0-1.3-.1-2.7-.4-3.5z" />
+    </svg>
   );
 }

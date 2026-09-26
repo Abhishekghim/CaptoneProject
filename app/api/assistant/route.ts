@@ -1,19 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildSystemPrompt } from "@/backend/lib/assistant/prompts";
+import { createClient } from "@/backend/lib/supabase/server";
 import type { AssistantChatMessage, AssistantRequestBody, AssistantRole } from "@/shared/assistant/types";
 
-// TEMPORARY security note: this route enforces shape/size limits and rate
-// limiting, and — most importantly — only ever sees the pre-filtered
-// `contextSummary` string the client built via frontend/lib/assistant/scope.ts, never
-// raw store data. But it has no way to verify `role`/`userId` are telling
-// the truth, because this app has no real server-side session yet (see
-// lib/auth/SessionContext.tsx — local-only auth, nothing sent to the
-// server). Real enforcement requires wiring the Supabase auth already
-// scaffolded in lib/supabase/: read the user from the session cookie here,
-// look up their role/allowed IDs server-side, and build contextSummary from
-// a DB query instead of trusting the client. Until then this matches the
-// rest of the app's current (documented) security posture, not a
-// production-ready boundary.
+// Role/userId are now resolved server-side against Supabase Auth + the
+// caller's `profiles` row below (see POST) instead of trusting the
+// client-supplied `role`/`userId` fields — those fields may still arrive in
+// the request body for backward compat with AssistantWidget, but they are
+// never used for authorization, only the server-resolved values are. An
+// unauthenticated caller is only ever treated as the "public" role; any
+// other role requires a verified session.
+//
+// RESIDUAL GAP (unchanged by this fix): `contextSummary` is still a
+// client-built string (see frontend/lib/assistant/scope.ts) sent as-is to the
+// LLM — this route enforces shape/size limits on it but does not itself
+// query the DB to construct it. A later phase should build contextSummary
+// from a server-side DB query (scoped by the now-trustworthy role/userId)
+// instead of trusting the client's summary content.
 
 const ALLOWED_ROLES: AssistantRole[] = ["public", "patient", "technician", "radiologist", "referring_doctor", "admin"];
 const MAX_MESSAGE_LENGTH = 2000;
@@ -53,9 +56,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const { role, userId, message, history, contextSummary } = body ?? ({} as AssistantRequestBody);
+  const { message, history, contextSummary } = body ?? ({} as AssistantRequestBody);
 
-  if (!role || !ALLOWED_ROLES.includes(role)) {
+  // Resolve role/userId server-side — never trust body.role/body.userId for
+  // authorization. An unauthenticated caller is only ever "public"; any
+  // other role requires a verified Supabase session and a matching
+  // `profiles` row, whose `role` column is the sole source of truth here.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let role: AssistantRole = "public";
+  let userId: string | null = null;
+
+  if (user) {
+    const { data: profile } = await supabase.from("profiles").select("id, role").eq("id", user.id).single();
+
+    if (!profile) {
+      return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+    }
+
+    role = profile.role as AssistantRole;
+    userId = user.id;
+  }
+
+  if (!ALLOWED_ROLES.includes(role)) {
     return NextResponse.json({ error: "Unknown or missing role." }, { status: 400 });
   }
   if (typeof message !== "string" || !message.trim() || message.length > MAX_MESSAGE_LENGTH) {

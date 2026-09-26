@@ -34,7 +34,7 @@ export default function PrivacyPage() {
           </Section>
 
           <Section title="Who can see it">
-            Access is role-restricted: your treating technician and radiologist can see what's needed to
+            Access is role-restricted: your treating technician and radiologist can see what&apos;s needed to
             perform and report your scan; billing staff can see payment information; your referring doctor (if
             any) can see your finalized report; administrators can see operational data needed to run the
             clinic. Every access is logged for audit purposes.
@@ -48,8 +48,8 @@ export default function PrivacyPage() {
 
           <Section title="Your rights">
             You may request a copy of your data, correct inaccurate information via your profile, or request
-            deletion of your account and associated data at any time from your dashboard's "Privacy & your
-            data" section. Deletion requests are reviewed by our team before being carried out, since some
+            deletion of your account and associated data at any time from your dashboard&apos;s &quot;Privacy &amp; your
+            data&quot; section. Deletion requests are reviewed by our team before being carried out, since some
             health records are subject to retention requirements under applicable regulations.
           </Section>
 

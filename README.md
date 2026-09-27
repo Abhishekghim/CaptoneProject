@@ -57,3 +57,5 @@ The CI workflow runs these same checks. The current test suite covers selected d
 
 - [Karambir](https://github.com/KaramVanguard)
 
+Contributor acknowledgements are maintained here alongside the project history.
+

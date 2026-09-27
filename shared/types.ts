@@ -116,6 +116,10 @@ export interface ImageAnnotation {
   y: number;
   note: string;
   created_at: string;
+  /** Image the pin belongs to (migration 034). Null for pins saved before per-image linking. */
+  sop_instance_uid?: string | null;
+  /** 1-based frame within a multi-frame instance; null for single-frame images. */
+  frame_number?: number | null;
 }
 
 export type InsuranceClaimStatus = "not_submitted" | "submitted" | "approved" | "rejected";

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import {
-  Activity, BarChart3, Bell, Boxes, CalendarClock, ClipboardList, Crown, Eye, FileSignature, FileUp,
+  Activity, BarChart3, Bell, Boxes, CalendarClock, ClipboardList, Crown, Eye, FileCheck, FileSignature, FileUp,
   HeartPulse, Info, KeySquare, LayoutDashboard, LogOut, MessageSquare, Newspaper, Receipt, ScanLine,
   Send, ShieldAlert, ShieldCheck, Stethoscope, UserCheck, UserPlus, UserRound, UserX, Users, UsersRound, Wrench, X,
 } from "lucide-react";
@@ -52,6 +52,7 @@ const NAV_BY_ROLE: Record<Role, { label: string; icon: React.ElementType; href?:
   radiologist: [
     { label: "Unreported scans", icon: ClipboardList, href: "/dashboard/unreported" },
     { label: "Read & report", icon: Activity, href: "/dashboard/read" },
+    { label: "Reports", icon: FileCheck, href: "/dashboard/reports" },
   ],
   admin: [
     { label: "Overview", icon: LayoutDashboard, href: "/dashboard/overview" },
@@ -304,8 +305,15 @@ function AdminDemoModePanel({
         Preview another dashboard for demos. This does not sign you in as that role.
       </p>
       <div className="mt-2 flex flex-wrap gap-1.5">
+        {/* super_admin is never offered here — previewing "up" into it would
+            let an admin navigate into super_admin-exclusive pages (staff
+            accounts, doctor requests) and view real data there, since reads
+            for those are permitted by is_staff()/is_admin() RLS even though
+            writes correctly stay gated on the real role. This isn't a
+            "preview a lower role for demo purposes" case like the rest of
+            this list. */}
         {(Object.keys(ROLE_META) as Role[])
-          .filter((role) => role !== currentRole)
+          .filter((role) => role !== currentRole && role !== "super_admin")
           .map((role) => {
             const Meta = ROLE_META[role];
             const active = previewRole === role;

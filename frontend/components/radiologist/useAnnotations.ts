@@ -37,14 +37,24 @@ export function useAnnotations(scanId: string | null) {
     load();
   }, [load]);
 
+  const [notice, setNotice] = useState<string | null>(null);
+
   const addAnnotation = useCallback(
-    async (x: number, y: number, note: string) => {
+    async (x: number, y: number, note: string, image?: { sopInstanceUid: string; frameNumber: number | null }) => {
       if (!scanId) return;
       setActionError(null);
+      setNotice(null);
       const supabase = createClient();
-      const { error } = await supabase
+      const base: Record<string, unknown> = { scan_id: scanId, author_id: store.currentUser.id, x, y, note };
+      let { error } = await supabase
         .from("image_annotations")
-        .insert({ scan_id: scanId, author_id: store.currentUser.id, x, y, note });
+        .insert(image ? { ...base, sop_instance_uid: image.sopInstanceUid, frame_number: image.frameNumber } : base);
+      // Before migration 034 the image-link columns don't exist; keep the pin
+      // (shown on every slice) rather than losing the finding.
+      if (error && image && /sop_instance_uid|frame_number/.test(error.message)) {
+        ({ error } = await supabase.from("image_annotations").insert(base));
+        if (!error) setNotice("Pin saved, but not linked to this slice — database migration 034 hasn't been applied yet.");
+      }
       if (error) {
         setActionError(error.message);
         return;
@@ -68,5 +78,5 @@ export function useAnnotations(scanId: string | null) {
     [load]
   );
 
-  return { annotations, loadError, actionError, addAnnotation, removeAnnotation };
+  return { annotations, loadError, actionError, notice, addAnnotation, removeAnnotation };
 }

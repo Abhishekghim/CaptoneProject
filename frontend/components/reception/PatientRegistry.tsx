@@ -396,10 +396,13 @@ function BookForPatientForm({
   const { data: scanPrices } = useScanPrices();
   const [bodyPart, setBodyPart] = useState(BODY_PARTS[0]);
   const [location, setLocation] = useState(LOCATIONS[0]);
-  const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const [date, setDate] = useState(todayStr);
   const [slot, setSlot] = useState(TIME_SLOTS[0]);
   const [paymentType, setPaymentType] = useState(PAYMENT_TYPES[0]);
+  const [checkInNow, setCheckInNow] = useState(true);
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const isToday = date === todayStr;
 
   const takenSlots = appointments
     .filter((a) => a.date === date && a.location === location && a.status !== "cancelled")
@@ -426,7 +429,25 @@ function BookForPatientForm({
       setFeedback({ ok: false, text: error.message ?? "Could not book this appointment." });
       return;
     }
-    setFeedback({ ok: true, text: "Appointment booked." });
+
+    // Walk-in check-in: the patient is physically here right now, so skip
+    // the "not_arrived" default and go straight to "checked_in" — a valid
+    // one-step transition from not_arrived (013_appointments_arrival_workflow.sql),
+    // same as reception clicking "Check in" on the schedule table, just
+    // folded into the same action instead of a second trip to find the row.
+    if (isToday && checkInNow) {
+      const { error: checkInError } = await supabase
+        .from("appointments")
+        .update({ arrival_status: "checked_in", checked_in_at: new Date().toISOString() })
+        .eq("id", data.id);
+      if (checkInError) {
+        setFeedback({ ok: false, text: `Booked, but could not check in: ${checkInError.message}` });
+        setTimeout(onDone, 1400);
+        return;
+      }
+    }
+
+    setFeedback({ ok: true, text: isToday && checkInNow ? "Appointment booked and patient checked in." : "Appointment booked." });
     notifyPatient(
       patientId,
       "appointment_booked",
@@ -481,7 +502,20 @@ function BookForPatientForm({
             {PAYMENT_TYPES.map((p) => <option key={p}>{p}</option>)}
           </select>
         </div>
-        <button type="submit" className="btn-primary text-xs">Confirm booking</button>
+        {isToday && (
+          <label className="flex items-center gap-2 text-xs font-semibold text-navy">
+            <input
+              type="checkbox"
+              checked={checkInNow}
+              onChange={(e) => setCheckInNow(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-medical focus:ring-medical"
+            />
+            Check in now — patient is here (walk-in)
+          </label>
+        )}
+        <button type="submit" className="btn-primary text-xs">
+          {isToday && checkInNow ? "Confirm booking & check in" : "Confirm booking"}
+        </button>
         {feedback && (
           <p role="status" className={`rounded-md p-2 text-xs font-semibold ${feedback.ok ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-800"}`}>
             {feedback.text}

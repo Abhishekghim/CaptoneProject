@@ -133,8 +133,14 @@ export default function TodaysQueue() {
   const todaysQueue = queue ?? [];
 
   async function startScan(appointmentId: string) {
-    setRowBusyId(appointmentId);
     setRowErrors((e) => ({ ...e, [appointmentId]: "" }));
+    const a = todaysQueue.find((row) => row.id === appointmentId);
+    const hasReferralToCheck = Boolean(a?.referral_url || a?.referring_doctor_name);
+    if (hasReferralToCheck && !a?.referral_reviewed) {
+      setRowErrors((e) => ({ ...e, [appointmentId]: "Mark the referral reviewed before starting the scan." }));
+      return;
+    }
+    setRowBusyId(appointmentId);
     const supabase = createClient();
     const { error } = await supabase.from("appointments").update({ status: "in_progress" }).eq("id", appointmentId);
     setRowBusyId(null);
@@ -262,7 +268,8 @@ export default function TodaysQueue() {
                       <button
                         type="button"
                         className="btn-ghost text-xs"
-                        disabled={busy}
+                        disabled={busy || (hasReferralToCheck && !a.referral_reviewed)}
+                        title={hasReferralToCheck && !a.referral_reviewed ? "Mark the referral reviewed before starting the scan" : undefined}
                         onClick={() => startScan(a.id)}
                       >
                         <Play size={14} aria-hidden /> {busy ? "Starting…" : "Start scan"}

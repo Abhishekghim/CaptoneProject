@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, format, parseISO } from "date-fns";
-import { CalendarClock, CheckCircle2, Paperclip, XCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, Loader2, Paperclip, XCircle } from "lucide-react";
 import { useStore } from "@/frontend/lib/store";
 import { BODY_PARTS, LOCATIONS, TIME_SLOTS } from "@/frontend/lib/constants";
 import { uploadToBucket } from "@/frontend/lib/storage";
@@ -46,6 +46,38 @@ function usePendingReferrals(patientId: string) {
   }, [load]);
 
   return { referrals, loadError, reload: load };
+}
+
+// Which of TIME_SLOTS are already taken for a date+location — real-time,
+// server-checked (get_taken_slots, 035_available_slots_rpc.sql), mirroring
+// the DB's own no_double_booking unique (date, time_slot, location)
+// constraint exactly rather than approximating it client-side. null = still
+// loading (so the UI can distinguish "checking" from "confirmed clear").
+function useTakenSlots(date: string, location: string) {
+  const [taken, setTaken] = useState<string[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setTaken(null);
+    const supabase = createClient();
+    const { data, error } = await supabase.rpc("get_taken_slots", { p_date: date, p_location: location });
+    if (error) {
+      // Fail open — an unknown availability isn't a reason to block booking
+      // outright, book_appointment's own unique-violation catch is still the
+      // authoritative backstop either way.
+      setLoadError(error.message);
+      setTaken([]);
+      return;
+    }
+    setLoadError(null);
+    setTaken((data ?? []) as string[]);
+  }, [date, location]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return { taken, loadError, reload: load };
 }
 
 /* ------------------------------------------------------------------ */
@@ -112,12 +144,37 @@ export default function BookingCard({ onBooked }: { onBooked: () => void }) {
     setFeedback(null);
   }
 
-  // No client-side "taken slots" hint here — same RLS reasoning as
-  // AppointmentHistoryRow above: appts_patient_read_own only lets a patient
-  // read their own appointments, so there's no way to see other patients'
-  // bookings to compute real clashes. book_appointment's own unique-
-  // constraint clash error (surfaced below via `feedback`) already handles
-  // this on submit.
+  const { taken: takenSlotsData, loadError: takenSlotsError, reload: reloadTakenSlots } = useTakenSlots(date, location);
+  const takenSlots = useMemo(() => new Set(takenSlotsData ?? []), [takenSlotsData]);
+  const slotsLoading = takenSlotsData === null;
+
+  // Ticks every 30s so a slot that's still in the future when the page loads
+  // correctly becomes disabled if the patient leaves this tab open past it,
+  // without needing a reload — "real-time" per the actual clock, not just
+  // whatever time it happened to be on mount.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const isToday = date === format(now, "yyyy-MM-dd");
+  const currentHm = format(now, "HH:mm");
+  // "HH:mm" strings compare correctly with plain < since they're fixed-width
+  // and zero-padded (TIME_SLOTS, frontend/lib/constants.ts).
+  const isPastSlot = useCallback((t: string) => isToday && t <= currentHm, [isToday, currentHm]);
+
+  const availableSlots = TIME_SLOTS.filter((t) => !takenSlots.has(t) && !isPastSlot(t));
+
+  // Keep the selection valid as the date/location/clock change — drop to the
+  // next open slot rather than silently submitting a stale, now-unavailable
+  // one.
+  useEffect(() => {
+    if (slotsLoading) return;
+    if (availableSlots.includes(slot)) return;
+    setSlot(availableSlots[0] ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when the available set itself changes, not on every `slot` write
+  }, [slotsLoading, availableSlots.join(","), slot]);
 
   const { data: scanPrices, loadError: scanPricesLoadError } = useScanPrices();
   const price = (scanPrices ?? {})[bodyPart] ?? 480;
@@ -125,6 +182,7 @@ export default function BookingCard({ onBooked }: { onBooked: () => void }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
 
+    if (!slot) return; // button is disabled anyway; belt and braces
     if (!activeReferral && usingOtherDoctor && !otherDoctorName.trim()) {
       setFeedback({ ok: false, text: "Enter your doctor's name, or choose \"None — self-referred\" instead." });
       return;
@@ -180,6 +238,10 @@ export default function BookingCard({ onBooked }: { onBooked: () => void }) {
 
     if (error) {
       setFeedback({ ok: false, text: error.message ?? "Booking failed. Try another slot." });
+      // Someone else could have taken this slot in the gap between our last
+      // availability check and this submit — refresh so it shows as taken
+      // immediately instead of waiting for the next date/location change.
+      reloadTakenSlots();
       return;
     }
 
@@ -203,6 +265,7 @@ export default function BookingCard({ onBooked }: { onBooked: () => void }) {
     // A referral used above just got used_in_appointment_id set by
     // book_appointment — refetch so it drops out of the "waiting to be used" list.
     if (usingReferralId) reloadPendingReferrals();
+    reloadTakenSlots();
     onBooked();
 
     notifyPatient(
@@ -321,21 +384,32 @@ export default function BookingCard({ onBooked }: { onBooked: () => void }) {
           <DatePickerField value={date} onChange={setDate} />
         </div>
         <div>
-          <span className="label">Available time slots</span>
+          <span className="label flex items-center gap-1.5">
+            Available time slots
+            {slotsLoading && <Loader2 size={12} className="animate-spin text-slate-400" aria-hidden />}
+          </span>
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Time slot">
             {TIME_SLOTS.map((t) => {
               const active = slot === t;
+              const isTaken = takenSlots.has(t);
+              const isPast = isPastSlot(t);
+              const disabled = slotsLoading || isTaken || isPast;
               return (
                 <button
                   key={t}
                   type="button"
                   role="radio"
                   aria-checked={active}
+                  aria-disabled={disabled}
+                  disabled={disabled}
+                  title={isPast ? "This time has already passed today" : isTaken ? "This slot is already booked" : undefined}
                   onClick={() => setSlot(t)}
                   className={`rounded-lg border px-3 py-1.5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-medical ${
                     active
                       ? "border-medical bg-medical text-white"
-                      : "border-slate-300 bg-white text-navy hover:border-medical"
+                      : disabled
+                        ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-300 line-through"
+                        : "border-slate-300 bg-white text-navy hover:border-medical"
                   }`}
                 >
                   {t}
@@ -343,7 +417,18 @@ export default function BookingCard({ onBooked }: { onBooked: () => void }) {
               );
             })}
           </div>
-          <p className="mt-1 text-[11px] text-slate-400">If this slot is already booked, you&rsquo;ll see an error when you confirm below — pick another time and try again.</p>
+          {takenSlotsError && (
+            <p className="mt-1 text-[11px] text-amber-600">
+              Couldn&rsquo;t check live availability ({takenSlotsError}) — all times are shown open; a clash still gets caught when you confirm below.
+            </p>
+          )}
+          {!slotsLoading && !takenSlotsError && (
+            availableSlots.length === 0 ? (
+              <p className="mt-1 text-[11px] font-semibold text-rose-600">No slots left for this date at this location — try another day or clinic.</p>
+            ) : (
+              <p className="mt-1 text-[11px] text-slate-400">Greyed-out times are already booked or have passed today — updates live as slots fill up.</p>
+            )
+          )}
         </div>
         <div className="md:col-span-2">
           <label htmlFor="bk-ref" className="label">Referral document (PDF or image)</label>
@@ -364,7 +449,7 @@ export default function BookingCard({ onBooked }: { onBooked: () => void }) {
               Estimated fee: <span className="font-bold text-navy">${price.toFixed(2)}</span>{" "}
               <span className="text-xs text-slate-500">(card or insurance at check-in)</span>
             </p>
-            <button type="submit" className="btn-primary" disabled={uploading}>
+            <button type="submit" className="btn-primary" disabled={uploading || slotsLoading || !slot}>
               <CalendarClock size={16} aria-hidden /> {uploading ? "Uploading referral…" : "Book appointment"}
             </button>
           </div>

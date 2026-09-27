@@ -1,0 +1,17 @@
+anatomy-bodyparts3d.glb and anatomy-poster.jpg
+
+Source: BodyParts3D 4.0 ("partof" OBJ set)
+        https://dbarchive.biosciencedbc.jp/en/bodyparts3d/
+
+Attribution (required by the licence):
+  BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International
+
+Licence: Creative Commons Attribution 4.0 International
+         https://creativecommons.org/licenses/by/4.0/
+
+Changes made: selected skeletal parts (skull, vertebral column, thoracic cage,
+pelvic and shoulder girdles, limb bones) and organs (brain, spinal cord, liver,
+kidneys, pancreas, urinary bladder) were merged into anatomical groups,
+re-oriented to Y-up metres, mesh-simplified (about 200k triangles in total) and
+meshopt-compressed. anatomy-poster.jpg is a render of that model.
+Build script: scripts/anatomy/build-anatomy-model.mjs

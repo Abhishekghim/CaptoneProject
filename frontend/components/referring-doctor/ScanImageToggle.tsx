@@ -50,6 +50,8 @@ export default function ScanImageToggle({ scan }: { scan: MriScan }) {
             meta={{ protocol: scan.protocol, machine: scan.machine_name ?? undefined, performedAt: scan.performed_at ?? undefined }}
             annotations={annotations ?? []}
             canAnnotate={false}
+            dicomImageUrl={scan.dicom_image_url}
+            variant="compact"
           />
         </div>
       )}

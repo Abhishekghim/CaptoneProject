@@ -315,7 +315,15 @@ function CancelDialog({
 
 /* ------------------------------------------------------------------ */
 export function WaitingRoomSection({ appointments, profiles }: { appointments: Appointment[]; profiles: ProfileRow[] }) {
-  const waiting = appointments.filter((a) => a.arrival_status === "waiting").sort((a, b) => (a.checked_in_at ?? "").localeCompare(b.checked_in_at ?? ""));
+  // arrival_status has no terminal "done" state (see 013_appointments_arrival_workflow.sql
+  // — the adjacency list only ever leaves "waiting" via "no_show") because it
+  // was only ever meant to track the front-desk pre-scan journey. Once the
+  // scan itself finishes, appointments.status is the real source of truth
+  // for "this visit is over" — without this check a patient stays in the
+  // waiting room forever after their scan is actually done.
+  const waiting = appointments
+    .filter((a) => a.arrival_status === "waiting" && a.status !== "completed")
+    .sort((a, b) => (a.checked_in_at ?? "").localeCompare(b.checked_in_at ?? ""));
 
   return (
     <section id="waiting-room" className="card p-5 sm:p-6">

@@ -108,6 +108,30 @@ export default function StaffDirectoryPanel() {
 function StaffRowItem({ row, onChanged, isSelf }: { row: StaffRow; onChanged: () => void; isSelf: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [specialty, setSpecialty] = useState<string | null>(null);
+  const [savingSpecialty, setSavingSpecialty] = useState(false);
+
+  useEffect(() => {
+    if (row.role !== "radiologist") return;
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase.from("radiologist_details").select("specialty").eq("profile_id", row.id).maybeSingle();
+      if (!cancelled) setSpecialty(data?.specialty ?? "");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [row.id, row.role]);
+
+  async function saveSpecialty() {
+    setSavingSpecialty(true);
+    const supabase = createClient();
+    await supabase
+      .from("radiologist_details")
+      .upsert({ profile_id: row.id, specialty: (specialty ?? "").trim() || null }, { onConflict: "profile_id" });
+    setSavingSpecialty(false);
+  }
 
   async function changeRole(newRole: Role) {
     if (newRole === row.role) return;
@@ -152,6 +176,18 @@ function StaffRowItem({ row, onChanged, isSelf }: { row: StaffRow; onChanged: ()
         >
           {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
         </select>
+        {row.role === "radiologist" && specialty !== null && (
+          <div className="mt-1 flex items-center gap-1">
+            <input
+              className="input w-32 px-1.5 py-0.5 text-xs"
+              placeholder="Specialty"
+              value={specialty}
+              onChange={(e) => setSpecialty(e.target.value)}
+              onBlur={saveSpecialty}
+            />
+            {savingSpecialty && <Loader2 size={11} className="animate-spin text-slate-400" aria-hidden />}
+          </div>
+        )}
       </td>
       <td className="py-2.5 pr-4">
         <span className={`chip ${row.is_active ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
@@ -177,6 +213,7 @@ function CreateStaffForm({ onCreated }: { onCreated: () => void }) {
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<Role>("technician");
+  const [specialty, setSpecialty] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -197,9 +234,19 @@ function CreateStaffForm({ onCreated }: { onCreated: () => void }) {
         setError(body.error || "Could not create this account.");
         return;
       }
+      // radiologist_details_write (schema.sql) permits is_admin() (which
+      // includes super_admin) to write any profile_id directly — no server
+      // route needed for this part, unlike the invite itself.
+      if (role === "radiologist" && specialty.trim()) {
+        const supabase = createClient();
+        await supabase
+          .from("radiologist_details")
+          .upsert({ profile_id: body.profileId, specialty: specialty.trim() }, { onConflict: "profile_id" });
+      }
       setSuccess(`Invite sent to ${email.trim()}.`);
       setEmail("");
       setFullName("");
+      setSpecialty("");
       onCreated();
     } catch {
       setError("Network error — please try again.");
@@ -215,6 +262,11 @@ function CreateStaffForm({ onCreated }: { onCreated: () => void }) {
       <select className="input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
         {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
       </select>
+      {role === "radiologist" ? (
+        <input placeholder="Specialty (e.g. Neuro, MSK)" className="input" value={specialty} onChange={(e) => setSpecialty(e.target.value)} />
+      ) : (
+        <div />
+      )}
       <button type="submit" disabled={busy} className="btn-primary text-xs">
         {busy ? "Sending invite…" : "Send invite"}
       </button>

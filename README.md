@@ -1,67 +1,59 @@
-# Capital Radiology — Online MRI Management System (Project 24)
+# Capital Radiology
 
-Full-stack blueprint: Next.js (App Router) + React + Tailwind CSS + Lucide icons on the
-frontend, PostgreSQL / Supabase (Auth, RLS, Storage) on the backend.
+Capital Radiology is a Next.js App Router application for MRI bookings and clinic workflows. It uses Supabase Auth and PostgreSQL with Row-Level Security (RLS); several integrations (email, payments, AI assistant) require their own provider configuration.
 
-## Quick start (demo mode — no backend needed)
+## Run locally
+
+Prerequisites: Node.js 20 and npm.
+
+1. Install dependencies with `npm ci`.
+2. Copy `.env.local.example` to `.env.local` and configure at least `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` for authentication and protected routes.
+3. Set up a Supabase project and apply the SQL schema and migrations in `backend/database/`. Check each migration's header for prerequisites and apply migrations in numeric order; do not apply a migration to an existing database without first checking its current schema.
+4. Start the development server with `npm run dev`, then open `http://localhost:3000`.
+
+Additional environment variables enable server-side features. `SUPABASE_SERVICE_ROLE_KEY` must remain server-only and bypasses RLS; never expose it in a `NEXT_PUBLIC_` variable. Email, Stripe, OpenAI, and phone-verification configuration and test-mode warnings are documented in `.env.local.example`. Do not enable the phone-verification test bypass in a deployed environment.
+
+For test accounts, see [LOGIN_CREDENTIALS.md](LOGIN_CREDENTIALS.md). It contains test passwords: keep it private and rotate or remove those accounts before any public deployment.
+
+## Workflows
+
+- **Patient:** manage health information, book appointments, submit referrals, view reports and billing, message the clinic, and manage privacy settings.
+- **Reception:** register patients, view the schedule, and manage arrivals.
+- **Technician:** work the scan queue and record scan details.
+- **Radiologist:** review scans and create, sign, and finalize reports.
+- **Referring doctor:** submit referrals and view permitted patient/report information.
+- **Admin:** manage appointments, billing, equipment, inventory, content, security alerts, account deletion requests, messages, and audit records.
+- **Super admin:** manage staff accounts and referring-doctor access in addition to admin workflows.
+
+Role access is enforced through Supabase Auth, server-side route checks, and database policies. Admin demo previews only change the displayed dashboard; they do not grant the previewed role's permissions.
+
+## Medical imaging
+
+- **DICOM viewer** (`frontend/components/radiologist/DicomViewer.tsx`, parsing in `frontend/lib/dicom/`): loads a scan's stored study, or DICOM files/folders a radiologist opens from their own computer (not uploaded). It supports uncompressed grayscale DICOM Part 10 (8/16-bit, MONOCHROME1/2, single- and multi-frame); compressed transfer syntaxes (JPEG, JPEG 2000, RLE, …) and colour images are reported per file as unsupported. It is a review viewer, not validated for primary diagnosis.
+- **Series storage**: technicians upload every file of a series; `mri_scans.dicom_image_url` holds either one file path or a folder path ending in `/`. Apply `backend/database/034_dicom_series_and_annotation_images.sql` so released series folders are readable by patients/internal referrers and annotation pins are linked to the image they were placed on.
+- **Homepage anatomy model**: `public/models/anatomy-bodyparts3d.glb` is derived from BodyParts3D (© The Database Center for Life Science, CC BY 4.0). See `public/models/ANATOMY_MODEL_CREDITS.txt` and `scripts/anatomy/build-anatomy-model.mjs`.
+
+## Project layout
+
+- `app/`: routes, layouts, authentication pages, and API handlers.
+- `frontend/components/`: role-specific and shared interface components.
+- `frontend/lib/`: browser Supabase client, data hooks, and frontend utilities.
+- `backend/lib/`: server-side Supabase clients, authorization, and integrations.
+- `backend/database/`: baseline schema and ordered SQL migrations.
+- `shared/`: shared TypeScript types and domain logic.
+
+## Checks
 
 ```bash
-npm install
-npm run dev
-# open http://localhost:3000
+npm run lint
+npx tsc --noEmit
+npm test
+npm run build
 ```
 
-The app boots with seeded in-memory data and a **role switcher** in the top bar
-(Patient / Technician / Radiologist / Admin), so every workflow is testable
-end-to-end in the browser immediately:
+The CI workflow runs these same checks. The current test suite covers selected domain logic, notification handling, receipt generation, assistant data scoping, and an admin content editor; it is not a substitute for testing against a configured Supabase project. See [ASSESSMENT_EVIDENCE.md](ASSESSMENT_EVIDENCE.md) for the verification record and manual acceptance checklist.
 
-1. **Patient** — book an MRI (slot clash detection, referral upload), fill the
-   MRI safety checklist, view finalized reports, download a mock DICOM export,
-   see billing.
-2. **Technician** — start a queued scan, then log it (protocol, machine,
-   duration slider, simulated DICOM upload). This releases the study to radiology.
-3. **Radiologist** — pick a study from the unreported queue, read it in the
-   canvas DICOM viewer (zoom / pan / brightness / contrast / invert), apply a
-   report template, save a draft, then type an e-signature to finalize.
-4. **Admin** — KPIs (total scans, monthly revenue, pending reports), record
-   payments, service overdue equipment, and search the append-only audit log,
-   which records every action taken in the session.
+## Contributors
 
-## Connecting Supabase (production mode)
+- [Karambir](https://github.com/KaramVanguard)
 
-1. Create a Supabase project and run `backend/database/schema.sql` in the SQL Editor.
-   It creates all enums, the 8 core tables, indexes, triggers (auto profile
-   creation, `updated_at`, automatic audit trail), Row-Level Security policies
-   for all four roles, and three private storage buckets
-   (`referrals`, `dicom`, `receipts`).
-2. Copy `.env.local.example` to `.env.local` and set
-   `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-3. `lib/supabase.ts` exposes the client; the store's action functions map 1:1
-   onto tables (`bookAppointment` → `appointments` + `billing`, `logScan` →
-   `mri_scans`, `finalizeReport` → `radiology_reports`, …), so swapping the
-   in-memory setters for `supabase.from(...)` calls is mechanical.
-
-## Structure
-
-```
-backend/database/schema.sql          Complete DDL: enums, tables, FKs, indexes, RLS, triggers, seed
-app/                         App Router entry (layout, page, global styles)
-lib/                         types, seed data, global store (auth simulation + actions), supabase client
-frontend/components/shared/           Shell (sidebar + role switcher), UI primitives
-frontend/components/patient/          Booking, health profile, results & billing
-frontend/components/technician/       Queue + scan logger
-frontend/components/radiologist/      Canvas DICOM viewer + report editor
-frontend/components/admin/            KPIs, billing, equipment, audit log
-```
-
-## Requirement coverage
-
-- FR1–FR5 auth & RBAC → `profiles` + RLS `get_user_role()` helpers + role switcher
-- FR6–FR19 booking, profiles, referrals → PatientDashboard + `appointments`/`patient_medical_records`
-- FR20–FR28 procedures & imaging → TechnicianPortal + `mri_scans` + storage `dicom` bucket
-- FR29–FR33 reporting → RadiologistWorkspace + `radiology_reports` (signature CHECK constraint)
-- FR34–FR38 billing → BillingPanel + `billing`
-- FR44–FR48 patient portal → results/billing/appointments sections
-- FR53–FR56 equipment → EquipmentPanel + `equipment_logs`
-- FR52, FR70–FR74 security & audit → RLS on every table, append-only `audit_logs`, DB audit triggers
-- NFR5–NFR8 → AES-256 at rest (Supabase default), HTTPS, bcrypt via Supabase Auth, fine-grained RLS

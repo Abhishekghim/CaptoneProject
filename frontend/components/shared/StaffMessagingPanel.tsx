@@ -5,7 +5,26 @@ import { Loader2, MessageSquare, Users2 } from "lucide-react";
 import { createClient } from "@/frontend/lib/supabase/client";
 import { EmptyState, SectionTitle } from "@/frontend/components/shared/ui";
 import { MessageThreadView } from "@/frontend/components/shared/Messaging";
-import type { Message } from "@/shared/types";
+import type { Message, Role } from "@/shared/types";
+
+type ChannelFilter = "all" | "admin" | "reception" | "technician" | "radiologist";
+
+const CHANNEL_FILTERS: { value: ChannelFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "admin", label: "Admin" },
+  { value: "reception", label: "Reception" },
+  { value: "technician", label: "Technician" },
+  { value: "radiologist", label: "Radiologist" },
+];
+
+// "Admin" also catches super_admin — one department, not a separate tab —
+// every other filter is an exact match against the message's real sender_role
+// (set server-side by send_internal_message, never client-supplied).
+function matchesChannel(role: Role, filter: ChannelFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "admin") return role === "admin" || role === "super_admin";
+  return role === filter;
+}
 
 /**
  * Shared by technician/radiologist/admin/reception dashboards: patient<->staff
@@ -150,6 +169,8 @@ export default function StaffMessagingPanel() {
     reload: reloadInternalMessages,
   } = useThreadMessages(internalThreadId ?? null);
   const [sendInternalError, setSendInternalError] = useState<string | null>(null);
+  const [channelFilter, setChannelFilter] = useState<ChannelFilter>("all");
+  const filteredInternalMessages = (internalMessagesData ?? []).filter((m) => matchesChannel(m.sender_role, channelFilter));
 
   async function sendToPatient(body: string) {
     if (!selectedThread) return;
@@ -231,7 +252,7 @@ export default function StaffMessagingPanel() {
       </section>
 
       <section id="internal-messages" className="card p-5 sm:p-6">
-        <SectionTitle icon={Users2} title="Staff channel" subtitle="Internal messaging between technicians, radiologists, and admin (FR43)" />
+        <SectionTitle icon={Users2} title="Staff channel" subtitle="Internal messaging across the team — filter by department, or post to everyone (FR43)" />
         {internalThreadError && (
           <p role="alert" className="mb-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
             Could not load the staff channel: {internalThreadError}
@@ -247,11 +268,34 @@ export default function StaffMessagingPanel() {
             Could not send: {sendInternalError}
           </p>
         )}
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {CHANNEL_FILTERS.map((f) => {
+            const active = f.value === channelFilter;
+            return (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => setChannelFilter(f.value)}
+                aria-pressed={active}
+                className={`rounded-md px-2.5 py-1 text-xs font-semibold ${
+                  active ? "bg-medical text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {f.label}
+              </button>
+            );
+          })}
+        </div>
         <MessageThreadView
-          messages={internalMessagesData ?? []}
+          messages={filteredInternalMessages}
           onSend={sendInternal}
           placeholder="Message the team…"
-          emptyHint="Visible to every technician, radiologist, and admin."
+          emptyHint={
+            channelFilter === "all"
+              ? "Visible to every technician, radiologist, reception and admin."
+              : `No messages from ${CHANNEL_FILTERS.find((f) => f.value === channelFilter)?.label} yet — this still filters the one shared staff channel, everyone can read every message.`
+          }
+          showSenderRole
         />
       </section>
     </div>

@@ -69,7 +69,7 @@ function ReadPageInner() {
     : null;
 
   const {
-    annotations, loadError: annotationsLoadError, actionError: annotationsActionError,
+    annotations, loadError: annotationsLoadError, actionError: annotationsActionError, notice: annotationsNotice,
     addAnnotation, removeAnnotation,
   } = useAnnotations(selectedScan?.id ?? null);
 
@@ -79,7 +79,7 @@ function ReadPageInner() {
   if (effectiveRole !== "radiologist") return null;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8">
+    <div className="mx-auto max-w-[1600px] space-y-8">
       {loadError && (
         <p role="alert" className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
           Could not load: {loadError}
@@ -94,7 +94,7 @@ function ReadPageInner() {
           </Link>
         </div>
       ) : selectedScan && selectedApt ? (
-        <div className="grid gap-6 xl:grid-cols-2">
+        <div className="space-y-8">
           <section id="dicom-viewer">
             <SectionTitle
               icon={Stethoscope}
@@ -105,6 +105,11 @@ function ReadPageInner() {
               <p role="alert" className="mb-2 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
                 {annotationsLoadError && `Could not load annotations: ${annotationsLoadError}`}
                 {annotationsActionError && `Could not save annotation: ${annotationsActionError}`}
+              </p>
+            )}
+            {annotationsNotice && (
+              <p role="status" className="mb-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                {annotationsNotice}
               </p>
             )}
             <DicomViewer
@@ -119,6 +124,8 @@ function ReadPageInner() {
               annotations={annotations ?? []}
               onAddAnnotation={addAnnotation}
               onRemoveAnnotation={removeAnnotation}
+              dicomImageUrl={selectedScan.dicom_image_url}
+              allowLocalFiles
             />
           </section>
 

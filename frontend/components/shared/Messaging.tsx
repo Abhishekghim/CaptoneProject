@@ -7,17 +7,32 @@ import { useStore } from "@/frontend/lib/store";
 import type { Message } from "@/shared/types";
 import { EmptyState } from "@/frontend/components/shared/ui";
 
+const ROLE_LABELS: Record<Message["sender_role"], string> = {
+  patient: "Patient",
+  technician: "Technician",
+  radiologist: "Radiologist",
+  admin: "Admin",
+  super_admin: "Super Admin",
+  reception: "Reception",
+  referring_doctor: "Referring Doctor",
+};
+
 /** Shared message-list + composer, used for both patient<->staff (FR41) and internal staff<->staff (FR43) threads. */
 export function MessageThreadView({
   messages,
   onSend,
   placeholder,
   emptyHint,
+  showSenderRole = false,
 }: {
   messages: Message[];
   onSend: (body: string) => void;
   placeholder: string;
   emptyHint: string;
+  /** Tags each non-own message with the sender's role — useful once messages
+   *  can be filtered by role (the internal staff channel), where the sender's
+   *  department is the whole point of the filter. */
+  showSenderRole?: boolean;
 }) {
   const store = useStore();
   const [draft, setDraft] = useState("");
@@ -40,7 +55,12 @@ export function MessageThreadView({
             return (
               <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${mine ? "bg-medical text-white" : "bg-white text-navy shadow-sm"}`}>
-                  {!mine && <p className="mb-0.5 text-[11px] font-semibold text-slate-500">{m.sender_name}</p>}
+                  {!mine && (
+                    <p className="mb-0.5 text-[11px] font-semibold text-slate-500">
+                      {m.sender_name}
+                      {showSenderRole && <span className="font-normal text-slate-400"> · {ROLE_LABELS[m.sender_role]}</span>}
+                    </p>
+                  )}
                   <p className="whitespace-pre-wrap">{m.body}</p>
                   <p className={`mt-1 text-[10px] ${mine ? "text-white/70" : "text-slate-400"}`}>
                     {format(parseISO(m.created_at), "d MMM, h:mm a")}

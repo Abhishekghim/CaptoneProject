@@ -3,7 +3,7 @@
 import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
-import { ScanLine } from "lucide-react";
+import { Loader2, ScanLine } from "lucide-react";
 import { useStore } from "@/frontend/lib/store";
 import { EmptyState, SectionTitle } from "@/frontend/components/shared/ui";
 import { useTodaysQueue } from "@/frontend/components/technician/TodaysQueue";
@@ -53,7 +53,11 @@ function ScanLoggerPageInner() {
             Could not load today&apos;s queue: {loadError}
           </p>
         )}
-        {inProgress.length === 0 ? (
+        {queue === null ? (
+          <p className="flex items-center gap-2 text-sm text-slate-500">
+            <Loader2 size={14} className="animate-spin" aria-hidden /> Loading…
+          </p>
+        ) : inProgress.length === 0 ? (
           <EmptyState
             message="No scan is in progress"
             hint='Press "Start scan" on a queued appointment to open the logger.'

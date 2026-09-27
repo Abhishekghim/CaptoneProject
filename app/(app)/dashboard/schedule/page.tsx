@@ -43,7 +43,7 @@ export default function SchedulePage() {
   const activeToday = today.filter((a) => a.status !== "cancelled");
 
   const checkedInCount = activeToday.filter((a) => a.arrival_status !== "not_arrived" && a.arrival_status !== "no_show").length;
-  const waitingCount = activeToday.filter((a) => a.arrival_status === "waiting").length;
+  const waitingCount = activeToday.filter((a) => a.arrival_status === "waiting" && a.status !== "completed").length;
   const inProgressCount = activeToday.filter((a) => a.status === "in_progress").length;
   const completedCount = activeToday.filter((a) => a.status === "completed").length;
   const attentionCount = activeToday.filter((a) => getAttentionReasons(a, (billing ?? []).find((b) => b.appointment_id === a.id)).length > 0).length;

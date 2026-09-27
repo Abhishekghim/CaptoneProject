@@ -22,3 +22,8 @@
 .DS_Store
 *.pem
 npm-debug.log*
+
+# real sample DICOM files dropped locally for testing — these get uploaded to
+# Supabase Storage by a one-off script, never committed (large, and not ours
+# to redistribute beyond this project's test data).
+/sample Dicom images/

@@ -91,7 +91,7 @@ export const ANATOMY_CHAPTERS: AnatomyChapter[] = [
     ],
     highlight: ["vertebral_column", "spinal_cord"],
     organs: ["spinal_cord"],
-    focus: ["vertebral_column"],
+    focus: ["skull", "vertebral_column"],
     ghostBones: true,
     yaw: Math.PI * 0.82,
   },

@@ -34,6 +34,7 @@ export interface QueueAppointment {
   referring_doctor_practice: string | null;
   referral_reviewed: boolean;
   assigned_technician_id: string | null;
+  confirmed: boolean;
   patient_name: string;
   referring_doctor_display_name: string | null;
   assigned_technician_name: string | null;
@@ -49,7 +50,7 @@ export function useTodaysQueue(todayStr: string) {
     const { data: appointments, error } = await supabase
       .from("appointments")
       .select(
-        "id, patient_id, date, time_slot, location, body_part, status, referral_url, referring_doctor_id, referring_doctor_name, referring_doctor_practice, referral_reviewed, assigned_technician_id"
+        "id, patient_id, date, time_slot, location, body_part, status, referral_url, referring_doctor_id, referring_doctor_name, referring_doctor_practice, referral_reviewed, assigned_technician_id, confirmed"
       )
       .eq("date", todayStr)
       .in("status", ["scheduled", "in_progress"])
@@ -135,6 +136,10 @@ export default function TodaysQueue() {
   async function startScan(appointmentId: string) {
     setRowErrors((e) => ({ ...e, [appointmentId]: "" }));
     const a = todaysQueue.find((row) => row.id === appointmentId);
+    if (a && !a.confirmed) {
+      setRowErrors((e) => ({ ...e, [appointmentId]: "This booking is waiting for referral approval and can't be scanned yet." }));
+      return;
+    }
     const hasReferralToCheck = Boolean(a?.referral_url || a?.referring_doctor_name);
     if (hasReferralToCheck && !a?.referral_reviewed) {
       setRowErrors((e) => ({ ...e, [appointmentId]: "Mark the referral reviewed before starting the scan." }));
@@ -232,6 +237,11 @@ export default function TodaysQueue() {
                         )}
                       </p>
                     )}
+                    {!a.confirmed && a.status === "scheduled" && (
+                      <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">
+                        <AlertTriangle size={13} aria-hidden /> Awaiting referral approval — not confirmed
+                      </p>
+                    )}
                     {flags.length > 0 && (
                       <p className="mt-1.5 inline-flex flex-wrap items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">
                         <AlertTriangle size={13} aria-hidden />
@@ -268,8 +278,14 @@ export default function TodaysQueue() {
                       <button
                         type="button"
                         className="btn-ghost text-xs"
-                        disabled={busy || (hasReferralToCheck && !a.referral_reviewed)}
-                        title={hasReferralToCheck && !a.referral_reviewed ? "Mark the referral reviewed before starting the scan" : undefined}
+                        disabled={busy || !a.confirmed || (hasReferralToCheck && !a.referral_reviewed)}
+                        title={
+                          !a.confirmed
+                            ? "This booking is waiting for referral approval"
+                            : hasReferralToCheck && !a.referral_reviewed
+                              ? "Mark the referral reviewed before starting the scan"
+                              : undefined
+                        }
                         onClick={() => startScan(a.id)}
                       >
                         <Play size={14} aria-hidden /> {busy ? "Starting…" : "Start scan"}

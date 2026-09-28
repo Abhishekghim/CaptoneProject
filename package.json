@@ -27,6 +27,7 @@
     "three": "^0.167.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@testing-library/jest-dom": "^6.5.0",
     "@testing-library/react": "^16.0.1",
     "@types/node": "^20.14.0",

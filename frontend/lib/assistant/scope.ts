@@ -26,13 +26,12 @@ export interface AssistantContext {
 // the system prompt's "don't discuss anything outside this context" rule is
 // a second layer on top of it, not a substitute for it.
 //
-// IMPORTANT CAVEAT: this app's auth is still the TEMPORARY local-only mode
-// (see lib/auth/SessionContext.tsx) — there is no server session, so nothing
-// here is verified server-side. Once real Supabase auth is wired in, this
-// resolver's logic should move server-side (reading from the DB with RLS
-// already scoping the query) so a tampered client request can't lie about
-// its role. Until then, treat this as UI-layer scoping only, matching the
-// rest of the app's current security posture.
+// CAVEAT: role/userId are verified server-side against real Supabase Auth
+// before this summary is ever accepted (app/api/assistant/route.ts), but the
+// summary text itself is still built here, client-side, and trusted as-is by
+// that route. A tampered client can't claim a different role, but it could
+// still hand-craft a misleading summary for its own (legitimately verified)
+// role. Building this from a server-side DB query would close that gap.
 
 // profiles/records use the real hooks' row types (ProfileRow / MedicalRecordRow
 // from frontend/lib/hooks/) rather than shared/types.ts's Profile/MedicalRecord —
@@ -53,14 +52,30 @@ export interface StoreSnapshot {
 }
 
 export const PUBLIC_ASSISTANT_SUMMARY = `
-Capital Radiology offers Brain, Spine, Joint, Abdomen and Pelvis MRI scans, plus CT, ultrasound and X-ray, across three Sydney clinics:
-- Sydney CBD Clinic — Level 4, 88 Elizabeth Street, Sydney NSW 2000 — Mon-Fri 7:00am-7:00pm, Sat 8:00am-2:00pm
-- Parramatta Imaging — Suite 2, 12 Church Street, Parramatta NSW 2150 — Mon-Fri 7:30am-6:00pm, Sat 8:00am-12:00pm
-- Chatswood Centre — Level 1, 45 Victoria Avenue, Chatswood NSW 2067 — Mon-Fri 8:00am-6:00pm, Sat closed
-Booking flow: create a free account, book an MRI online, attend the scan (usually 20-45 minutes), a radiologist reads and signs the report, results appear in the patient portal within about 24-48 hours.
+Capital Radiology is a major provider of diagnostic imaging in Victoria, with 40+ clinics across Melbourne, and is part of Integral Diagnostics (IDX). Services: MRI, CT, general X-ray, ultrasound, mammography, bone densitometry, nuclear medicine, CT coronary angiography, echocardiography, lung cancer screening, interventional procedures (including osteoarthritis injections) and dental imaging (OPG). MRI can be booked online through this portal.
+MRI clinics (all VIC):
+- Berwick — 286 Clyde Road, Berwick VIC 3806 — (03) 8773 5788 — Mon–Fri: 8:30am – 5:30pm, Sat: 9am – 1pm
+- Camberwell — 607-609 Riversdale Road, Camberwell VIC 3124 — (03) 8808 7688 — Mon–Fri: 8:30am – 5pm, Sat: Closed
+- Cheltenham — 4/10 Jamieson Street, Cheltenham VIC 3192 — (03) 9262 5488 — Mon–Fri: 8:30am – 5pm, Sat: 9am – 1pm
+- Clayton Monash House — Suite 1, 271 Clayton Road, Clayton VIC 3168 — (03) 8546 6288 — Mon–Fri: 8:30am – 5pm, Sat: 9am – 1pm
+- Cranbourne — 130-132 South Gippsland Highway, Cranbourne VIC 3977 — (03) 5911 5200 — Mon–Fri: 9am – 5pm, Sat: Closed
+- Dandenong — 54/56 Princes Highway, Dandenong VIC 3175 — (03) 8788 9888 — Mon–Fri: 9am – 5pm, Sat: 9am – 1pm
+- Epping — 1/500 High Street, Epping VIC 3076 — (03) 8401 8401 — Mon–Fri: 8:30am – 5pm, Sat: Closed
+- Footscray Western Private Hospital — Western Private Hospital - Corner Eleanor and Marion Streets, Footscray VIC 3011 — (03) 9236 4088 — Mon–Fri: 9am – 5pm, Sat: 9am – 1pm
+- Niddrie — 1 Treadwell Road, Niddrie VIC 3042 — (03) 9334 3434 — Mon–Fri: 9am – 5pm, Sat: Closed
+- Pakenham — Suite 1, 20 Station St, Pakenham VIC 3810 — (03) 5929 8100 — Mon–Fri: 9am – 5pm, Sat: Closed
+- Spotswood — G3-4/30 Macindoe Ct, Spotswood VIC 3015 — (03) 9688 2888 — Mon–Fri: 9am – 5pm, Sat: Closed
+- Sunshine Private Hospital — Ground Floor, 145 Furlong Road, St Albans VIC 3021 — (03) 8312 7888 — Mon–Fri: 8:30am – 5pm, Sat: 9am – 1pm
+- Sydenham — 530-532 Melton Highway, Sydenham VIC 3037 — (03) 8361 4488 — Mon–Fri: 9am – 5pm, Sat: Closed
+- Vermont Private — Ground Floor 645-647 Burwood Highway, Vermont VIC 3133 — (03) 9841 2555 — Mon–Fri: 9am – 5pm, Sat: 9am – 1pm
+- Werribee — 27 Princes Highway, Werribee VIC 3030 — (03) 8734 3222 — Mon–Fri: 9am – 5pm, Sat: Closed
+Full list of all 40+ clinics: capitalradiology.com.au/locations/
+Booking flow: create a free account, book an MRI online, attend the scan (length depends on the type of MRI), a radiologist reports on the images, and the referring doctor typically receives the report within 2-3 business days.
+Billing: most services are bulk-billed; pensioners and health care card holders are bulk-billed; some specialised services, including certain MRI procedures, may have limited or no Medicare coverage. Private health insurance only covers imaging for private hospital inpatients.
+Walk-ins: X-ray and dental imaging only.
 Referrals: a referral is NOT required to book — patients can self-refer and choose "None — self-referred" at booking. If a patient does have a referring doctor, they can select one already in the system, or name a doctor who isn't yet (attaching a copy of the referral so a technician can verify it before the scan). Never tell a visitor a referral is required to book with Capital Radiology — it isn't.
 MRI safety: patients must disclose pacemakers, defibrillators, cochlear implants, metal implants, surgical clips, shrapnel, or claustrophobia when booking.
-Contact: 1300 722 674, care@capitalradiology.com.au.
+Contact: phone the nearest clinic (numbers above); postal address PO Box 551, East Melbourne VIC 8002; general enquiries via capitalradiology.com.au/about/general-enquiry/.
 `.trim();
 
 export function buildAssistantContext(store: StoreSnapshot): AssistantContext {

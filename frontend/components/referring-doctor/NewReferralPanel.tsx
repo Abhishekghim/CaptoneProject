@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Send, UserPlus } from "lucide-react";
 import { useStore } from "@/frontend/lib/store";
 import { BODY_PARTS } from "@/frontend/lib/constants";
 import { createClient } from "@/frontend/lib/supabase/client";
+import { uploadToBucket } from "@/frontend/lib/storage";
 import { SectionTitle } from "@/frontend/components/shared/ui";
 
 // Inserts directly into the real doctor_referrals table — RLS
@@ -24,26 +25,43 @@ export default function NewReferralPanel({ onCreated }: { onCreated?: () => void
   const [patientFullName, setPatientFullName] = useState("");
   const [patientEmail, setPatientEmail] = useState("");
   const [patientDob, setPatientDob] = useState("");
+  const [patientPhone, setPatientPhone] = useState("");
   const [bodyPart, setBodyPart] = useState(BODY_PARTS[0]);
   const [notes, setNotes] = useState("");
+  const [referralFile, setReferralFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!referralFile) {
+      setFeedback({ ok: false, text: "Attach the signed referral document." });
+      return;
+    }
     setSubmitting(true);
     setFeedback(null);
+    const uploaded = await uploadToBucket("referrals", referralFile, me.id);
+    if (!uploaded.ok) {
+      setSubmitting(false);
+      setFeedback({ ok: false, text: `Could not upload the referral: ${uploaded.error}` });
+      return;
+    }
     const email = patientEmail.trim().toLowerCase();
     const supabase = createClient();
+    // Name, DOB, phone and the document are what let the patient's booking
+    // confirm automatically (037_booking_referral_approval.sql).
     const { data, error } = await supabase
       .from("doctor_referrals")
       .insert({
         referring_doctor_id: me.id,
         patient_full_name: patientFullName.trim(),
         patient_email: email,
-        patient_dob: patientDob || null,
+        patient_dob: patientDob,
+        patient_phone: patientPhone.trim(),
         body_part: bodyPart,
         notes: notes.trim() || null,
+        referral_url: uploaded.path,
       })
       .select()
       .single();
@@ -62,7 +80,10 @@ export default function NewReferralPanel({ onCreated }: { onCreated?: () => void
     setPatientFullName("");
     setPatientEmail("");
     setPatientDob("");
+    setPatientPhone("");
     setNotes("");
+    setReferralFile(null);
+    if (fileRef.current) fileRef.current.value = "";
     onCreated?.();
   }
 
@@ -90,11 +111,21 @@ export default function NewReferralPanel({ onCreated }: { onCreated?: () => void
           <p className="mt-1 text-[11px] text-slate-400">Used to match this referral to their account — theirs, not yours.</p>
         </div>
         <div>
-          <label htmlFor="ref-dob" className="label">Patient date of birth <span className="font-normal text-slate-400">(optional)</span></label>
+          <label htmlFor="ref-dob" className="label">Patient date of birth</label>
           <input
-            id="ref-dob" type="date" className="input" value={patientDob}
+            id="ref-dob" type="date" required className="input" value={patientDob}
             onChange={(e) => setPatientDob(e.target.value)}
           />
+        </div>
+        <div>
+          <label htmlFor="ref-phone" className="label">Patient mobile number</label>
+          <input
+            id="ref-phone" type="tel" required className="input" placeholder="e.g. 0412 345 678" value={patientPhone}
+            onChange={(e) => setPatientPhone(e.target.value)}
+          />
+          <p className="mt-1 text-[11px] text-slate-400">
+            With the name and date of birth, this lets the patient&rsquo;s booking confirm straight away.
+          </p>
         </div>
         <div>
           <label htmlFor="ref-body" className="label">Requested scan</label>
@@ -105,6 +136,17 @@ export default function NewReferralPanel({ onCreated }: { onCreated?: () => void
         <div className="md:col-span-2">
           <label htmlFor="ref-notes" className="label">Clinical notes <span className="font-normal text-slate-400">(optional)</span></label>
           <textarea id="ref-notes" rows={2} className="input" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </div>
+        <div className="md:col-span-2">
+          <label htmlFor="ref-file" className="label">Signed referral (PDF or image)</label>
+          <input
+            id="ref-file" ref={fileRef} type="file" accept=".pdf,image/*" required
+            onChange={(e) => setReferralFile(e.target.files?.[0] ?? null)}
+            className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-medical-light file:px-4 file:py-2 file:text-sm file:font-semibold file:text-medical hover:file:bg-sky-100"
+          />
+          <p className="mt-1 text-[11px] text-slate-400">
+            Referrals from external doctors confirm the patient&rsquo;s booking automatically if they book within 24 hours.
+          </p>
         </div>
         <div className="md:col-span-2">
           <button type="submit" className="btn-primary" disabled={submitting}>

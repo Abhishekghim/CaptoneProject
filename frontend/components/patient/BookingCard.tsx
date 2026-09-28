@@ -8,7 +8,8 @@ import { BODY_PARTS, LOCATIONS, TIME_SLOTS } from "@/frontend/lib/constants";
 import { uploadToBucket } from "@/frontend/lib/storage";
 import { createClient } from "@/frontend/lib/supabase/client";
 import { notifyPatient } from "@/frontend/lib/notify";
-import type { DoctorReferral } from "@/shared/types";
+import type { BookingReviewStatus, DoctorReferral } from "@/shared/types";
+import { bookingResultMessage, referralDocumentRule, type DoctorChoice } from "@/shared/bookingReview";
 import { DatePickerField } from "@/frontend/components/shared/Calendar";
 import PhoneVerificationStep from "@/frontend/components/shared/PhoneVerificationStep";
 import { SectionTitle } from "@/frontend/components/shared/ui";
@@ -123,6 +124,7 @@ export default function BookingCard({ onBooked }: { onBooked: () => void }) {
   const { data: profilesData, loadError: profilesLoadError } = useProfiles();
   const referringDoctors = (profilesData ?? []).filter((p) => p.role === "referring_doctor");
   const usingOtherDoctor = referringDoctorId === "__other__";
+  const doctorChoice: DoctorChoice = usingOtherDoctor ? "other" : referringDoctorId ? "registered" : "none";
 
   const {
     referrals: pendingReferralsData,
@@ -134,6 +136,12 @@ export default function BookingCard({ onBooked }: { onBooked: () => void }) {
   const activeReferralDoctor = activeReferral
     ? (profilesData ?? []).find((p) => p.id === activeReferral.referring_doctor_id)
     : undefined;
+  const documentRule = referralDocumentRule({
+    bodyPart,
+    doctorChoice,
+    doctorDetailsGiven: Boolean(otherDoctorName.trim() || otherDoctorPractice.trim()),
+    usingSystemReferral: Boolean(activeReferral),
+  });
 
   function useReferral(referralId: string) {
     const ref = pendingReferrals.find((r) => r.id === referralId);
@@ -183,12 +191,8 @@ export default function BookingCard({ onBooked }: { onBooked: () => void }) {
     e.preventDefault();
 
     if (!slot) return; // button is disabled anyway; belt and braces
-    if (!activeReferral && usingOtherDoctor && !otherDoctorName.trim()) {
-      setFeedback({ ok: false, text: "Enter your doctor's name, or choose \"None — self-referred\" instead." });
-      return;
-    }
-    if (!activeReferral && usingOtherDoctor && !referralFile) {
-      setFeedback({ ok: false, text: "Since your doctor isn't in our system yet, please attach a copy of your referral so our technician can verify it." });
+    if (!referralFile && documentRule === "required") {
+      setFeedback({ ok: false, text: "Please attach your referral document — it is required for this booking." });
       return;
     }
 
@@ -234,6 +238,7 @@ export default function BookingCard({ onBooked }: { onBooked: () => void }) {
       p_amount: price,
       p_payment_type: null,
       p_referral_id: usingReferralId || null,
+      p_other_doctor: !usingReferralId && usingOtherDoctor,
     });
 
     if (error) {
@@ -245,18 +250,11 @@ export default function BookingCard({ onBooked }: { onBooked: () => void }) {
       return;
     }
 
-    // book_appointment (backend/database/033_booking_review_gate.sql) returns
-    // the full appointment row, including `confirmed` — a self-booking for a
-    // body part that needs clinical sign-off, or with a referring
-    // doctor/referral attached, comes back with confirmed = false pending
-    // reception review (see ReceptionDashboard.tsx's "Unconfirmed" queue).
-    const bookedConfirmed = Boolean((data as { confirmed?: boolean } | null)?.confirmed);
-    setFeedback({
-      ok: true,
-      text: `Booked ${bodyPart} MRI at ${location} on ${format(parseISO(date), "d MMM")} ${slot}. Check the bell icon for your booking notification.${
-        bookedConfirmed ? "" : " — pending reception review before it's finalized."
-      }`,
-    });
+    // book_appointment (037_booking_referral_approval.sql) returns the new
+    // row; a pending booking holds the slot but is not confirmed yet.
+    const reviewStatus = ((data as { booking_review_status?: BookingReviewStatus } | null)?.booking_review_status ?? "not_required");
+    const summary = `${bodyPart} MRI at ${location} on ${format(parseISO(date), "d MMM")} ${slot}`;
+    setFeedback({ ok: true, text: bookingResultMessage({ status: reviewStatus, summary, doctorChoice: usingReferralId ? "registered" : doctorChoice }) });
     setReferralFile(null);
     setOtherDoctorName("");
     setOtherDoctorPractice("");
@@ -268,11 +266,14 @@ export default function BookingCard({ onBooked }: { onBooked: () => void }) {
     reloadTakenSlots();
     onBooked();
 
+    const pending = reviewStatus === "pending";
     notifyPatient(
       me.id,
-      "appointment_booked",
-      "Appointment booked",
-      `<p>${bodyPart} MRI — ${location} on ${date} at ${slot}.</p>`,
+      pending ? "appointment_reserved" : "appointment_booked",
+      pending ? "Appointment time reserved — not confirmed yet" : "Appointment booked",
+      pending
+        ? `<p>${bodyPart} MRI — ${location} on ${date} at ${slot} is reserved while we check your referral. It is not confirmed yet; we'll let you know once it has been reviewed.</p>`
+        : `<p>${bodyPart} MRI — ${location} on ${date} at ${slot}.</p>`,
       data.id
     );
   }
@@ -330,7 +331,7 @@ export default function BookingCard({ onBooked }: { onBooked: () => void }) {
           </select>
         </div>
         <div className={usingOtherDoctor || activeReferral ? "md:col-span-2" : undefined}>
-          <label className="label">Referring doctor</label>
+          <label htmlFor="bk-doctor" className="label">Referring doctor</label>
           {activeReferral ? (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm">
               <p className="text-sky-900">
@@ -357,7 +358,7 @@ export default function BookingCard({ onBooked }: { onBooked: () => void }) {
               {usingOtherDoctor && (
                 <div className="mt-3 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="bk-doctor-name" className="label">Doctor&rsquo;s name</label>
+                    <label htmlFor="bk-doctor-name" className="label">Doctor&rsquo;s name <span className="font-normal text-slate-400">(optional)</span></label>
                     <input
                       id="bk-doctor-name" className="input" placeholder="e.g. Dr. Sarah Kim"
                       value={otherDoctorName} onChange={(e) => setOtherDoctorName(e.target.value)}
@@ -371,8 +372,8 @@ export default function BookingCard({ onBooked }: { onBooked: () => void }) {
                     />
                   </div>
                   <p className="text-xs text-slate-500 sm:col-span-2">
-                    We don&rsquo;t need their registration number or email — just attach a copy of your referral below and
-                    our technician will verify it before your scan.
+                    Both are optional, but they help us verify your referral faster. Please attach a copy of your
+                    referral below — our team will review it and confirm your booking.
                   </p>
                 </div>
               )}
@@ -431,7 +432,16 @@ export default function BookingCard({ onBooked }: { onBooked: () => void }) {
           )}
         </div>
         <div className="md:col-span-2">
-          <label htmlFor="bk-ref" className="label">Referral document (PDF or image)</label>
+          <label htmlFor="bk-ref" className="label">
+            Referral document (PDF or image)
+            {documentRule === "required" ? (
+              <span className="ml-1 font-normal text-rose-600">required</span>
+            ) : documentRule === "unless_doctor_sent" ? (
+              <span className="ml-1 font-normal text-slate-500">(required unless your doctor sent it to us in the last 24 hours)</span>
+            ) : (
+              <span className="ml-1 font-normal text-slate-400">(optional)</span>
+            )}
+          </label>
           <input
             id="bk-ref" ref={fileRef} type="file" accept=".pdf,image/*"
             onChange={(e) => setReferralFile(e.target.files?.[0] ?? null)}

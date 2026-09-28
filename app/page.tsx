@@ -5,32 +5,36 @@ import {
   Activity,
   ArrowDown,
   ArrowUp,
+  Atom,
   BadgeCheck,
   Bone,
-  Brain,
   Building2,
   CalendarCheck,
   CalendarPlus,
   ChevronDown,
   Clock,
-  Dumbbell,
   FileCheck2,
-  Gauge,
+  Globe,
+  Heart,
+  HeartPulse,
   HelpCircle,
   Landmark,
   LogIn,
+  Magnet,
   Mail,
   MapPin,
   Menu,
   Phone,
-  PersonStanding,
   Quote,
+  Ribbon,
   ScanLine,
   ShieldAlert,
   ShieldCheck,
-  Star,
+  Smile,
   Stethoscope,
+  Syringe,
   Waves,
+  Wind,
   X,
 } from "lucide-react";
 import AssistantWidget from "@/frontend/components/shared/AssistantWidget";
@@ -50,141 +54,83 @@ const NAV_LINKS = [
 const SECTION_IDS = ["home", "anatomy", "about", "services", "how-it-works", "why-us", "locations", "safety", "contact"];
 
 const STATS = [
-  { value: "3", label: "Sydney clinics", icon: Building2 },
-  { value: "20–45 min", label: "Typical scan length", icon: Clock },
-  { value: "24–48 hrs", label: "Report turnaround", icon: FileCheck2 },
-  { value: "3T & 1.5T", label: "Scanner strength", icon: Gauge },
+  { value: "40+", label: "Clinics across Melbourne", icon: Building2 },
+  { value: "15", label: "Clinics with MRI", icon: Magnet },
+  { value: "2–3 days", label: "Report to your doctor", icon: FileCheck2 },
+  { value: "Bulk-billed", label: "Most services", icon: Landmark },
 ];
 
 const SERVICES = [
-  {
-    name: "Brain MRI",
-    icon: Brain,
-    description: "Detailed imaging of brain tissue and vessels to investigate headaches, neurological symptoms and more.",
-  },
-  {
-    name: "Spine MRI",
-    icon: Bone,
-    description: "Clear views of vertebrae, discs and the spinal cord to assess back pain, nerve compression and injury.",
-  },
-  {
-    name: "Joint MRI",
-    icon: Dumbbell,
-    description: "High-resolution scans of the knee, shoulder, hip and other joints to assess ligaments and cartilage.",
-  },
-  {
-    name: "Abdomen MRI",
-    icon: Waves,
-    description: "Non-invasive imaging of the liver, kidneys and abdominal organs without ionising radiation.",
-  },
-  {
-    name: "Pelvis MRI",
-    icon: PersonStanding,
-    description: "Detailed pelvic imaging supporting diagnosis of gynaecological, urological and musculoskeletal conditions.",
-  },
+  { name: "MRI", icon: Magnet, description: "Uses a strong magnetic field and radio waves to produce detailed images of the body’s internal structures." },
+  { name: "CT", icon: ScanLine, description: "Uses X-rays to create detailed cross-sectional images of the body in thin slices." },
+  { name: "General X-Ray", icon: Bone, description: "Fast, widely used imaging for bones, chest and joints. Walk-ins welcome." },
+  { name: "Ultrasound", icon: Waves, description: "Uses high-frequency sound waves to create real-time images of the body." },
+  { name: "Mammography", icon: Ribbon, description: "Breast imaging that helps detect breast cancer in its early stages." },
+  { name: "Bone Densitometry", icon: Activity, description: "A low-energy X-ray test that measures bone density or bone loss." },
+  { name: "Nuclear Medicine", icon: Atom, description: "Uses small amounts of radioactive material to show how organs and tissues are functioning." },
+  { name: "CT Coronary Angiography", icon: HeartPulse, description: "A non-invasive CT examination of the coronary arteries." },
+  { name: "Echocardiography", icon: Heart, description: "An ultrasound examination of the heart." },
+  { name: "Lung Cancer Screening", icon: Wind, description: "Low-dose chest CT, in partnership with the National Lung Cancer Screening Program." },
+  { name: "Interventional Procedures", icon: Syringe, description: "Image-guided procedures, including injections for osteoarthritis, targeted precisely using imaging." },
+  { name: "Dental Imaging (OPG)", icon: Smile, description: "A panoramic image of the entire mouth. Walk-ins welcome." },
 ];
 
 const STEPS = [
-  { title: "Book online", description: "Choose a clinic and a time that suits you, then complete your referral and safety details before you arrive." },
-  { title: "Attend your scan", description: "A qualified technician positions you comfortably and runs your MRI to protocol, usually in 20–45 minutes." },
-  { title: "Radiologist reviews your images", description: "A subspecialist radiologist reads your scan and prepares a structured, signed report." },
-  { title: "Results in your portal", description: "Your report lands securely in your patient portal, with your referring doctor notified at the same time." },
+  { title: "Get a referral", description: "Ask your GP or specialist for a referral. GP referrals are valid for 12 months." },
+  { title: "Book online", description: "Choose your nearest MRI clinic and a time that suits you, attach your referral and complete your safety screening." },
+  { title: "Attend your scan", description: "Our radiographers take you through your scan. How long it takes depends on the type of MRI your doctor has requested." },
+  { title: "Results", description: "A radiologist reports on your images and your referring doctor typically receives the report within 2–3 business days." },
 ];
 
 const WHY_US = [
-  { title: "Online booking", icon: CalendarCheck, description: "Book, reschedule or cancel your appointment in a few clicks, any time of day." },
-  { title: "Secure report access", icon: ShieldCheck, description: "Your images and reports are encrypted at rest and in transit, visible only to you and your care team." },
-  { title: "Qualified radiologists", icon: Stethoscope, description: "Every scan is read and signed off by a subspecialist radiologist before it reaches your portal." },
-  { title: "Modern scanners", icon: ScanLine, description: "Our clinics run modern 3T and 1.5T MRI scanners for sharper images and shorter scan times." },
+  { title: "All referrals accepted", icon: FileCheck2, description: "We accept referrals from any GP or specialist, for all of our imaging services." },
+  { title: "Bulk billing", icon: Landmark, description: "Most services are bulk-billed, and pensioners and health care card holders are bulk-billed." },
+  { title: "40+ clinics", icon: Building2, description: "A network of more than 40 clinics across Melbourne, 15 of them offering MRI." },
+  { title: "Radiologist-reported", icon: Stethoscope, description: "Radiologists, radiographers, sonographers and support staff working together at every clinic." },
 ];
 
 const LOCATIONS = [
-  {
-    name: "Sydney CBD Clinic",
-    address: "Level 4, 88 Elizabeth Street, Sydney NSW 2000",
-    hours: ["Mon–Fri: 7:00am – 7:00pm", "Sat: 8:00am – 2:00pm"],
-  },
-  {
-    name: "Parramatta Imaging",
-    address: "Suite 2, 12 Church Street, Parramatta NSW 2150",
-    hours: ["Mon–Fri: 7:30am – 6:00pm", "Sat: 8:00am – 12:00pm"],
-  },
-  {
-    name: "Chatswood Centre",
-    address: "Level 1, 45 Victoria Avenue, Chatswood NSW 2067",
-    hours: ["Mon–Fri: 8:00am – 6:00pm", "Sat: Closed"],
-  },
-];
-
-const TEAM = [
-  {
-    name: "Dr. Sarah Whitfield",
-    credentials: "MBBS, FRANZCR",
-    specialty: "Neuroradiology — Brain & Spine",
-    initials: "SW",
-  },
-  {
-    name: "Dr. Marcus Chen",
-    credentials: "MBBS, FRANZCR",
-    specialty: "Musculoskeletal Imaging — Joints & Sports Injury",
-    initials: "MC",
-  },
-  {
-    name: "Dr. Priya Nair",
-    credentials: "MBBS, FRANZCR",
-    specialty: "Body Imaging — Abdomen & Pelvis",
-    initials: "PN",
-  },
-  {
-    name: "Dr. James O'Connor",
-    credentials: "MBBS, FRANZCR",
-    specialty: "General & Emergency Radiology",
-    initials: "JO",
-  },
-];
-
-const TESTIMONIALS = [
-  {
-    quote: "Booked online in minutes and had my results the next day — no chasing anyone up.",
-    name: "Emma R.",
-    location: "Chatswood",
-  },
-  {
-    quote: "The team explained everything before my knee MRI. Made a stressful week much easier.",
-    name: "David T.",
-    location: "Parramatta",
-  },
-  {
-    quote: "Clear communication and friendly staff, and my GP had the report before I even got home.",
-    name: "Priya S.",
-    location: "Sydney CBD",
-  },
+  { name: "Berwick", address: "286 Clyde Road, Berwick VIC 3806", phone: "(03) 8773 5788", hours: ["Mon–Fri: 8:30am – 5:30pm", "Sat: 9am – 1pm"] },
+  { name: "Camberwell", address: "607-609 Riversdale Road, Camberwell VIC 3124", phone: "(03) 8808 7688", hours: ["Mon–Fri: 8:30am – 5pm", "Sat: Closed"] },
+  { name: "Cheltenham", address: "4/10 Jamieson Street, Cheltenham VIC 3192", phone: "(03) 9262 5488", hours: ["Mon–Fri: 8:30am – 5pm", "Sat: 9am – 1pm"] },
+  { name: "Clayton Monash House", address: "Suite 1, 271 Clayton Road, Clayton VIC 3168", phone: "(03) 8546 6288", hours: ["Mon–Fri: 8:30am – 5pm", "Sat: 9am – 1pm"] },
+  { name: "Cranbourne", address: "130-132 South Gippsland Highway, Cranbourne VIC 3977", phone: "(03) 5911 5200", hours: ["Mon–Fri: 9am – 5pm", "Sat: Closed"] },
+  { name: "Dandenong", address: "54/56 Princes Highway, Dandenong VIC 3175", phone: "(03) 8788 9888", hours: ["Mon–Fri: 9am – 5pm", "Sat: 9am – 1pm"] },
+  { name: "Epping", address: "1/500 High Street, Epping VIC 3076", phone: "(03) 8401 8401", hours: ["Mon–Fri: 8:30am – 5pm", "Sat: Closed"] },
+  { name: "Footscray Western Private Hospital", address: "Western Private Hospital - Corner Eleanor and Marion Streets, Footscray VIC 3011", phone: "(03) 9236 4088", hours: ["Mon–Fri: 9am – 5pm", "Sat: 9am – 1pm"] },
+  { name: "Niddrie", address: "1 Treadwell Road, Niddrie VIC 3042", phone: "(03) 9334 3434", hours: ["Mon–Fri: 9am – 5pm", "Sat: Closed"] },
+  { name: "Pakenham", address: "Suite 1, 20 Station St, Pakenham VIC 3810", phone: "(03) 5929 8100", hours: ["Mon–Fri: 9am – 5pm", "Sat: Closed"] },
+  { name: "Spotswood", address: "G3-4/30 Macindoe Ct, Spotswood VIC 3015", phone: "(03) 9688 2888", hours: ["Mon–Fri: 9am – 5pm", "Sat: Closed"] },
+  { name: "Sunshine Private Hospital", address: "Ground Floor, 145 Furlong Road, St Albans VIC 3021", phone: "(03) 8312 7888", hours: ["Mon–Fri: 8:30am – 5pm", "Sat: 9am – 1pm"] },
+  { name: "Sydenham", address: "530-532 Melton Highway, Sydenham VIC 3037", phone: "(03) 8361 4488", hours: ["Mon–Fri: 9am – 5pm", "Sat: Closed"] },
+  { name: "Vermont Private", address: "Ground Floor 645-647 Burwood Highway, Vermont VIC 3133", phone: "(03) 9841 2555", hours: ["Mon–Fri: 9am – 5pm", "Sat: 9am – 1pm"] },
+  { name: "Werribee", address: "27 Princes Highway, Werribee VIC 3030", phone: "(03) 8734 3222", hours: ["Mon–Fri: 9am – 5pm", "Sat: Closed"] },
 ];
 
 const FAQS = [
   {
-    q: "Do I need a referral for an MRI?",
-    a: "Most MRI scans require a referral from your GP or specialist to be eligible for a Medicare rebate. A small number of scans — shoulder, right knee and left knee — can be booked without a referral, though we still recommend one so we have your clinical history.",
+    q: "Do I need a referral?",
+    a: "Yes. A referral is required for all services at Capital Radiology clinics, and we accept referrals from any GP or specialist. For MRI, we need your referral before scheduling your appointment so we book the correct scan, clinic and appointment length.",
   },
   {
-    q: "Will I get a Medicare rebate?",
-    a: "Bulk billing and Medicare rebates depend on your referral and the specific item number for your scan. We'll always confirm any out-of-pocket cost with you before your appointment.",
+    q: "How long is my referral valid?",
+    a: "GP referrals are valid for 12 months. Specialist referral timeframes vary, so contact your clinic if you’re unsure. If your referral lists more than one service, check with our team.",
   },
   {
-    q: "What should I bring to my appointment?",
-    a: "Your referral (if you have one), Medicare and private health insurance cards, a list of current medications, and any prior imaging or reports relevant to your scan.",
+    q: "Will my scan be bulk-billed?",
+    a: "The majority of our services are eligible for bulk billing, and pensioners and health care card holders are bulk-billed. Some specialised services, including certain MRI procedures, may have limited or no Medicare coverage — we’ll let you know about any out-of-pocket cost when you book.",
   },
   {
-    q: "Is MRI safe if I have metal implants or a pacemaker?",
-    a: "Most implants are compatible with MRI, but some are not. Please tell us about any pacemakers, defibrillators, cochlear implants, metal implants, surgical clips or shrapnel when you book, so we can screen you safely in advance.",
+    q: "Does private health insurance cover my scan?",
+    a: "Private health insurance only covers medical imaging for private hospital inpatients.",
   },
   {
-    q: "How long until I get my results?",
-    a: "Most reports are ready within 24–48 hours. Your report is sent to your referring doctor and made available in your patient portal as soon as it's signed off.",
+    q: "When will my doctor get my results?",
+    a: "Your referring doctor can typically expect your report within 2–3 business days. Reports are sent to the doctor who referred you.",
   },
   {
-    q: "Can I book without creating an account?",
-    a: "You can book online in a few minutes, or call or visit any of our clinics and our reception team can register and book you in on the spot.",
+    q: "Can I walk in without an appointment?",
+    a: "Walk-ins are available for X-ray and dental imaging only. All other services, including MRI, need an appointment.",
   },
 ];
 
@@ -480,23 +426,23 @@ export default function MarketingHomePage() {
                 <Eyebrow>Who we are</Eyebrow>
                 <h2 className="text-2xl font-bold text-white sm:text-3xl">About Capital Radiology</h2>
                 <p className="mt-4 text-base leading-relaxed text-slate-300">
-                  Capital Radiology is a medical imaging provider delivering CT, MRI, ultrasound and X-ray services
-                  across multiple clinics. Our radiologists and technicians work to the same standards of accuracy
-                  and care at every location, so wherever you scan, you get the same trusted read.
+                  Capital Radiology is a major provider of advanced diagnostic imaging services and radiology
+                  education across Victoria, with more than 40 clinics throughout Melbourne. Our radiologists,
+                  radiographers, sonographers and support staff provide care to both patients and referring doctors
+                  every day.
                 </p>
                 <p className="mt-4 text-base leading-relaxed text-slate-300">
-                  We built our online portal because getting a scan shouldn&rsquo;t mean two trips to the clinic
-                  &mdash; one for the scan, one for the results. Book online, attend your appointment, and read your
-                  report as soon as it&rsquo;s ready, from wherever you are.
+                  Capital Radiology is part of Integral Diagnostics (IDX), a group that brings together radiology
+                  practices across Australia and New Zealand. Our values: patients first, medical leadership, one
+                  team, create value, integrity &amp; excellence, and embrace change.
                 </p>
               </Reveal>
               <Reveal delay={120}>
                 <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-medical/10 via-white/[0.04] to-transparent p-6">
                   <Quote size={30} className="text-white/15" aria-hidden />
-                  <p className="mt-2 text-sm font-semibold uppercase tracking-wide text-sky-300">Our promise</p>
+                  <p className="mt-2 text-sm font-semibold uppercase tracking-wide text-sky-300">Our purpose</p>
                   <p className="mt-3 text-base leading-relaxed text-white">
-                    &ldquo;Every scan, read by a subspecialist radiologist and delivered straight to your portal
-                    &mdash; no second trip required.&rdquo;
+                    &ldquo;Deliver the best health outcomes for our patients.&rdquo;
                   </p>
                 </div>
               </Reveal>
@@ -508,14 +454,14 @@ export default function MarketingHomePage() {
         <section id="services" className="scroll-mt-20 border-t border-white/10">
           <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
             <Reveal className="mx-auto max-w-2xl text-center">
-              <Eyebrow>What we scan</Eyebrow>
-              <h2 className="text-2xl font-bold text-white sm:text-3xl">MRI scans we perform</h2>
+              <Eyebrow>What we offer</Eyebrow>
+              <h2 className="text-2xl font-bold text-white sm:text-3xl">Our imaging services</h2>
               <p className="mt-3 text-base text-slate-300">
-                High-resolution imaging across the body, reported by subspecialist radiologists.
+                A full range of diagnostic imaging across our Melbourne clinics. MRI appointments can be booked online.
               </p>
             </Reveal>
 
-            <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
               {SERVICES.map((service, i) => (
                 <Reveal key={service.name} delay={i * 70}>
                   <div className={`${glassCard} group relative flex h-full flex-col gap-3 overflow-hidden p-5 ${cardHover}`}>
@@ -528,35 +474,6 @@ export default function MarketingHomePage() {
                     </span>
                     <h3 className="text-base font-bold text-white">{service.name}</h3>
                     <p className="text-sm leading-relaxed text-slate-300">{service.description}</p>
-                  </div>
-                </Reveal>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Team */}
-        <section id="team" className="scroll-mt-20 border-t border-white/10">
-          <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
-            <Reveal className="mx-auto max-w-2xl text-center">
-              <Eyebrow>Our radiologists</Eyebrow>
-              <h2 className="text-2xl font-bold text-white sm:text-3xl">Subspecialist radiologists behind every report</h2>
-              <p className="mt-3 text-base text-slate-300">
-                Every scan is read and signed off by a qualified radiologist with subspecialty training in the
-                relevant area of the body.
-              </p>
-            </Reveal>
-
-            <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              {TEAM.map((member, i) => (
-                <Reveal key={member.name} delay={i * 80}>
-                  <div className={`${glassCard} h-full p-5 text-center ${cardHover}`}>
-                    <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-medical to-teal-dark text-lg font-bold text-white shadow-glow">
-                      {member.initials}
-                    </span>
-                    <h3 className="mt-4 text-base font-bold text-white">{member.name}</h3>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-sky-300">{member.credentials}</p>
-                    <p className="mt-2 text-sm leading-relaxed text-slate-300">{member.specialty}</p>
                   </div>
                 </Reveal>
               ))}
@@ -605,14 +522,15 @@ export default function MarketingHomePage() {
                 <Eyebrow>Cost &amp; cover</Eyebrow>
                 <h2 className="text-2xl font-bold text-white sm:text-3xl">Medicare, private health cover &amp; costs</h2>
                 <p className="mt-4 text-base leading-relaxed text-slate-300">
-                  Most MRI scans performed with a valid referral are eligible for a Medicare rebate, and many are
-                  bulk-billed with no out-of-pocket cost. Where a gap applies, we&rsquo;ll always let you know the
-                  amount before your appointment &mdash; there are no surprise bills.
+                  In the majority of cases we bulk-bill Medicare for your procedure, so in most instances you
+                  don&rsquo;t need to pay anything upfront. Pension and concession card holders are bulk-billed where
+                  they meet Medicare&rsquo;s criteria.
                 </p>
                 <p className="mt-3 text-base leading-relaxed text-slate-300">
-                  A small number of scans &mdash; shoulder, right knee and left knee &mdash; can be booked without a
-                  GP referral. These self-referred scans aren&rsquo;t eligible for a Medicare rebate, so you&rsquo;ll
-                  pay the private fee directly, and we&rsquo;ll confirm the cost with you at booking.
+                  Medicare coverage may be limited or may not apply for some specialised services, including certain
+                  MRI procedures, and specialised interventional procedures performed by a radiologist can attract
+                  additional fees. We&rsquo;ll let you know about any out-of-pocket cost when you book &mdash; or
+                  check with your local clinic before your appointment.
                 </p>
               </Reveal>
               <Reveal delay={100}>
@@ -623,7 +541,7 @@ export default function MarketingHomePage() {
                     </span>
                     <h3 className="mt-3 text-sm font-bold text-white">Medicare bulk billing</h3>
                     <p className="mt-1.5 text-xs leading-relaxed text-slate-300">
-                      Available for most referred scans that meet Medicare eligibility criteria.
+                      The majority of our services are eligible for bulk billing.
                     </p>
                   </div>
                   <div className={`${glassCard} p-5`}>
@@ -632,16 +550,17 @@ export default function MarketingHomePage() {
                     </span>
                     <h3 className="mt-3 text-sm font-bold text-white">Private health cover</h3>
                     <p className="mt-1.5 text-xs leading-relaxed text-slate-300">
-                      We can process eligible private health fund rebates for select scans.
+                      Private health insurance only covers medical imaging for private hospital inpatients.
                     </p>
                   </div>
                   <div className={`${glassCard} p-5 sm:col-span-2`}>
                     <span className={`${iconChip} h-10 w-10`}>
                       <CalendarCheck size={18} aria-hidden />
                     </span>
-                    <h3 className="mt-3 text-sm font-bold text-white">No-referral scans</h3>
+                    <h3 className="mt-3 text-sm font-bold text-white">Other billing arrangements</h3>
                     <p className="mt-1.5 text-xs leading-relaxed text-slate-300">
-                      Shoulder, right knee and left knee MRI can be booked online without a GP referral.
+                      Workers&rsquo; compensation and overseas patients have separate arrangements &mdash; contact
+                      your clinic for details.
                     </p>
                   </div>
                 </div>
@@ -674,42 +593,24 @@ export default function MarketingHomePage() {
           </div>
         </section>
 
-        {/* Testimonials */}
-        <section id="testimonials" className="scroll-mt-20 border-t border-white/10">
-          <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
-            <Reveal className="mx-auto max-w-2xl text-center">
-              <Eyebrow>Patient stories</Eyebrow>
-              <h2 className="text-2xl font-bold text-white sm:text-3xl">What our patients say</h2>
-            </Reveal>
-
-            <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-3">
-              {TESTIMONIALS.map((t, i) => (
-                <Reveal key={t.name} delay={i * 90}>
-                  <div className={`${glassCard} relative h-full p-6 ${cardHover}`}>
-                    <Quote size={24} className="text-white/15" aria-hidden />
-                    <div className="mt-2 flex gap-0.5 text-amber-400" aria-hidden>
-                      {Array.from({ length: 5 }).map((_, s) => (
-                        <Star key={s} size={14} fill="currentColor" strokeWidth={0} />
-                      ))}
-                    </div>
-                    <p className="mt-3 text-sm leading-relaxed text-slate-300">&ldquo;{t.quote}&rdquo;</p>
-                    <p className="mt-4 text-sm font-bold text-white">
-                      {t.name} <span className="font-normal text-slate-400">&middot; {t.location}</span>
-                    </p>
-                  </div>
-                </Reveal>
-              ))}
-            </div>
-          </div>
-        </section>
-
         {/* Locations */}
         <section id="locations" className="scroll-mt-20 border-t border-white/10">
           <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
             <Reveal className="mx-auto max-w-2xl text-center">
               <Eyebrow>Clinics</Eyebrow>
-              <h2 className="text-2xl font-bold text-white sm:text-3xl">Find a clinic near you</h2>
-              <p className="mt-3 text-base text-slate-300">Three clinics across Sydney, all offering MRI, CT, ultrasound and X-ray.</p>
+              <h2 className="text-2xl font-bold text-white sm:text-3xl">Find an MRI clinic near you</h2>
+              <p className="mt-3 text-base text-slate-300">
+                15 of our 40+ Melbourne clinics offer MRI. For X-ray, ultrasound, CT and other services, see{" "}
+                <a
+                  href="https://capitalradiology.com.au/locations/"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="font-semibold text-sky-300 underline-offset-4 hover:underline"
+                >
+                  all locations
+                </a>
+                .
+              </p>
             </Reveal>
 
             <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-3">
@@ -722,6 +623,13 @@ export default function MarketingHomePage() {
                     </span>
                     <h3 className="mt-3 text-base font-bold text-white">{location.name}</h3>
                     <p className="mt-2 text-sm leading-relaxed text-slate-300">{location.address}</p>
+                    <a
+                      href={`tel:${location.phone.replace(/[^\d]/g, "")}`}
+                      className="mt-2 inline-flex items-center gap-1.5 text-sm text-slate-200 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-medical"
+                    >
+                      <Phone size={13} aria-hidden />
+                      {location.phone}
+                    </a>
                     <div className="mt-4 space-y-1 border-t border-white/10 pt-3">
                       {location.hours.map((line) => (
                         <p key={line} className="flex items-center gap-1.5 text-xs text-slate-400">
@@ -731,7 +639,7 @@ export default function MarketingHomePage() {
                       ))}
                     </div>
                     <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location.address)}`}
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Capital Radiology ${location.address}`)}`}
                       target="_blank"
                       rel="noreferrer noopener"
                       className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-sky-200 transition hover:border-medical hover:bg-medical hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-medical"
@@ -763,8 +671,8 @@ export default function MarketingHomePage() {
                     isn&rsquo;t suitable for you, or that we need extra time to plan your scan safely.
                   </p>
                   <p className="mt-2 text-sm leading-relaxed text-amber-200/80">
-                    If you feel anxious in enclosed spaces, let us know too. We can talk you through what to expect,
-                    offer a wider-bore scanner where available, or discuss sedation options with your referring doctor.
+                    If you feel anxious in enclosed spaces, let us know when you book so we can talk you through what
+                    to expect.
                   </p>
                 </div>
               </div>
@@ -840,7 +748,7 @@ export default function MarketingHomePage() {
                   <ShieldCheck size={13} aria-hidden /> Encrypted &amp; confidential
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <FileCheck2 size={13} aria-hidden /> Results in 24&ndash;48 hrs
+                  <FileCheck2 size={13} aria-hidden /> All referrals accepted
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <BadgeCheck size={13} aria-hidden /> Free to create an account
@@ -863,23 +771,33 @@ export default function MarketingHomePage() {
                 <span className="text-sm font-bold text-white">Capital Radiology</span>
               </div>
               <p className="mt-3 text-sm leading-relaxed text-slate-400">
-                Online booking, secure reporting and radiologist-reviewed MRI, CT, ultrasound and X-ray across Sydney.
+                Advanced diagnostic imaging across 40+ clinics in Melbourne. A subsidiary of Integral Diagnostics
+                (IDX).
               </p>
             </div>
 
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Contact</h3>
               <ul className="mt-3 space-y-2 text-sm text-slate-300">
-                <li className="flex items-center gap-2">
-                  <Phone size={14} className="text-slate-500" aria-hidden />
-                  <a href="tel:1300722674" className="hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-medical">
-                    1300 722 674
+                <li className="flex items-start gap-2">
+                  <Phone size={14} className="mt-0.5 shrink-0 text-slate-500" aria-hidden />
+                  <a href="#locations" className="hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-medical">
+                    Call your nearest clinic
                   </a>
                 </li>
-                <li className="flex items-center gap-2">
-                  <Mail size={14} className="text-slate-500" aria-hidden />
-                  <a href="mailto:care@capitalradiology.com.au" className="hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-medical">
-                    care@capitalradiology.com.au
+                <li className="flex items-start gap-2">
+                  <Mail size={14} className="mt-0.5 shrink-0 text-slate-500" aria-hidden />
+                  <span>PO Box 551, East Melbourne VIC 8002</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Globe size={14} className="mt-0.5 shrink-0 text-slate-500" aria-hidden />
+                  <a
+                    href="https://capitalradiology.com.au/about/general-enquiry/"
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-medical"
+                  >
+                    General enquiry form
                   </a>
                 </li>
               </ul>

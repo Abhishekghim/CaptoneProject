@@ -67,6 +67,10 @@ export type ArrivalStatus = "not_arrived" | "arrived" | "checked_in" | "waiting"
 // referral" flow (referral_reviewed) keeps working unmodified.
 export type ReferralStatus = "missing" | "received" | "pending_verification" | "verified" | "expired" | "rejected";
 
+// Booking approval state (backend/database/037_booking_referral_approval.sql).
+// Separate from `confirmed`: pending and declined bookings are never confirmed.
+export type BookingReviewStatus = "not_required" | "pending" | "approved" | "auto_confirmed" | "declined";
+
 export interface Appointment {
   id: string;
   patient_id: string;
@@ -102,6 +106,10 @@ export interface Appointment {
   checked_in_at: string | null;
   cancellation_reason: string | null;
   referral_status_override: ReferralStatus | null;
+  booking_review_status: BookingReviewStatus;
+  booking_reviewed_by: string | null;
+  booking_reviewed_at: string | null;
+  booking_review_reason: string | null;
 }
 
 // A radiologist's point annotation on a DICOM viewer slice (FR27 — "view
@@ -257,6 +265,9 @@ export interface DoctorReferral {
   // Filled in once the patient actually books using this referral, so it
   // stops being offered as "waiting to be used" afterward.
   used_in_appointment_id: string | null;
+  // Needed for the auto-confirm match (037_booking_referral_approval.sql).
+  patient_phone?: string | null;
+  referral_url?: string | null;
   created_at: string;
 }
 

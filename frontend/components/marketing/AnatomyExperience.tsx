@@ -165,24 +165,24 @@ export default function AnatomyExperience() {
 
   return (
     <section id="anatomy" aria-labelledby="anatomy-heading" className="scroll-mt-16 relative text-white">
-      <div className="mx-auto max-w-7xl px-4 pb-10 pt-20 sm:px-6 lg:px-8">
-        <p className="text-xs font-bold uppercase tracking-wider text-sky-300">Explore the anatomy we image</p>
-        <h2 id="anatomy-heading" className="mt-3 max-w-3xl text-3xl font-bold sm:text-4xl">
-          What an MRI can show, region by region
-        </h2>
-        <p className="mt-4 max-w-2xl text-base leading-relaxed text-slate-300">
-          {mode === "fallback"
-            ? "A short guide to the parts of the body MRI images best."
-            : "Scroll to move through the body. The model turns to each region and shows the anatomy an MRI examines there."}
-        </p>
-      </div>
-
       {mode === "fallback" ? (
-        <Fallback reason={reason} />
+        <>
+          <div className="mx-auto max-w-7xl px-4 pb-10 pt-20 sm:px-6 lg:px-8">
+            <SectionHeading />
+          </div>
+          <Fallback reason={reason} />
+        </>
       ) : (
         <div ref={trackRef} className="relative">
           <div className="sticky top-0 h-[100svh] overflow-hidden">
             <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_60%_45%,#10223d_0%,#060b16_65%)]" />
+            <div className="absolute inset-x-0 top-[84px]">
+              <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                <div className="lg:max-w-md">
+                  <SectionHeading />
+                </div>
+              </div>
+            </div>
             {/* Still render of the same model: shown until the 3D view is ready. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -205,10 +205,24 @@ export default function AnatomyExperience() {
               </div>
             )}
             {mode === "3d" && !modelShown && (
-              <p role="status" className="absolute left-1/2 top-24 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-xs text-slate-200">
+              <p role="status" className="absolute bottom-8 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-xs text-slate-200">
                 Loading 3D anatomy model… {Math.round(loadProgress)}%
               </p>
             )}
+            <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-6 lg:bottom-auto lg:top-[228px]">
+              <div className="mx-auto grid max-w-7xl px-4 sm:px-6 lg:px-8">
+                {ANATOMY_CHAPTERS.map((chapter, i) => (
+                  <article
+                    key={chapter.id}
+                    className={`w-full max-w-md rounded-2xl border border-white/10 bg-slate-950/80 p-5 shadow-2xl backdrop-blur-md transition-all duration-500 [grid-area:1/1] sm:p-6 ${
+                      i === activeIndex ? "translate-y-0 opacity-100" : "invisible translate-y-3 opacity-0"
+                    }`}
+                  >
+                    <ChapterText chapter={chapter} />
+                  </article>
+                ))}
+              </div>
+            </div>
             <p className="sr-only">
               A 3D model of the human skeleton and selected organs accompanies this section. It turns to face each region
               described below and highlights the anatomy discussed.
@@ -245,16 +259,12 @@ export default function AnatomyExperience() {
                 ref={(el) => {
                   stepRefs.current[i] = el;
                 }}
-                className="flex min-h-[100svh] items-end px-4 pb-8 sm:px-6 lg:items-center lg:pb-0 lg:pl-[max(2rem,calc((100vw-80rem)/2+2rem))]"
+                aria-current={i === activeIndex ? "step" : undefined}
+                className="h-[100svh]"
               >
-                <article
-                  aria-current={i === activeIndex ? "step" : undefined}
-                  className={`w-full max-w-md rounded-2xl border border-white/10 bg-slate-950/80 p-6 shadow-2xl backdrop-blur-md transition-opacity duration-500 sm:p-7 ${
-                    i === activeIndex ? "opacity-100" : "opacity-40"
-                  }`}
-                >
+                <div className="sr-only">
                   <ChapterText chapter={chapter} />
-                </article>
+                </div>
               </li>
             ))}
           </ol>
@@ -264,5 +274,16 @@ export default function AnatomyExperience() {
         </div>
       )}
     </section>
+  );
+}
+
+function SectionHeading() {
+  return (
+    <>
+      <p className="text-xs font-bold uppercase tracking-wider text-sky-300">Explore the anatomy we image</p>
+      <h2 id="anatomy-heading" className="mt-3 max-w-3xl text-3xl font-bold sm:text-4xl">
+        What an MRI can show, region by region
+      </h2>
+    </>
   );
 }

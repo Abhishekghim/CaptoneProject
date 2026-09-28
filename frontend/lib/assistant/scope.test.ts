@@ -53,6 +53,10 @@ function appointment(overrides: Partial<Appointment> & Pick<Appointment, "id" | 
     checked_in_at: null,
     cancellation_reason: null,
     referral_status_override: null,
+    booking_review_status: "not_required",
+    booking_reviewed_by: null,
+    booking_reviewed_at: null,
+    booking_review_reason: null,
     ...overrides,
   };
 }

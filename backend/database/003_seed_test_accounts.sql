@@ -1,10 +1,10 @@
 -- ============================================================================
 -- CAPITAL RADIOLOGY — Migration 003: Assign roles/usernames to test accounts
 -- Run in Supabase SQL Editor AFTER creating the 10 users below in
--- Authentication -> Users -> Add User (short emails, quick to type — see the
--- instructions Claude gave you for the exact list). This script only
--- touches public.profiles — it does not (and cannot, safely) create the
--- actual auth accounts itself. Safe to re-run.
+-- Authentication -> Users -> Add User (short emails, quick to type — see
+-- LOGIN_CREDENTIALS.md for the exact list). This script only touches
+-- public.profiles — it does not (and cannot, safely) create the actual
+-- auth accounts itself. Safe to re-run.
 -- ============================================================================
 
 update public.profiles set role = 'patient', username = 'patient1', full_name = 'Patient One'

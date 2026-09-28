@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import {
-  Activity, BarChart3, Bell, Boxes, CalendarClock, ClipboardList, Crown, Eye, FileCheck, FileSignature, FileUp,
+  Activity, BarChart3, Bell, Boxes, CalendarClock, ClipboardCheck, ClipboardList, Crown, Eye, FileCheck, FileSignature, FileUp,
   HeartPulse, Info, KeySquare, LayoutDashboard, LogOut, MessageSquare, Newspaper, Receipt, ScanLine,
   Send, ShieldAlert, ShieldCheck, Stethoscope, UserCheck, UserPlus, UserRound, UserX, Users, UsersRound, Wrench, X,
 } from "lucide-react";
 import { useStore } from "@/frontend/lib/store";
 import { createClient } from "@/frontend/lib/supabase/client";
+import { NOTIFICATIONS_REFRESH_EVENT } from "@/frontend/lib/notify";
 import type { Notification, Role } from "@/shared/types";
 import AssistantWidget from "./AssistantWidget";
 import { buildAssistantContext } from "@/frontend/lib/assistant/scope";
@@ -57,6 +58,7 @@ const NAV_BY_ROLE: Record<Role, { label: string; icon: React.ElementType; href?:
   admin: [
     { label: "Overview", icon: LayoutDashboard, href: "/dashboard/overview" },
     { label: "Appointments", icon: CalendarClock, href: "/dashboard/appointments" },
+    { label: "Booking reviews", icon: ClipboardCheck, href: "/dashboard/booking-reviews" },
     { label: "Billing", icon: Receipt, href: "/dashboard/billing" },
     { label: "Equipment", icon: Wrench, href: "/dashboard/equipment" },
     { label: "Inventory", icon: Boxes, href: "/dashboard/inventory" },
@@ -71,12 +73,14 @@ const NAV_BY_ROLE: Record<Role, { label: string; icon: React.ElementType; href?:
     { label: "Refer a patient", icon: UserPlus, href: "/dashboard/refer" },
     { label: "Referrals sent", icon: Send, href: "/dashboard/referrals-sent" },
     { label: "My patients", icon: Users, href: "/dashboard/my-patients" },
+    { label: "Booking approvals", icon: ClipboardCheck, href: "/dashboard/booking-approvals" },
   ],
   super_admin: [
     { label: "Staff accounts", icon: KeySquare, href: "/dashboard/staff-accounts" },
     { label: "Doctor requests", icon: UserCheck, href: "/dashboard/doctor-requests" },
     { label: "Overview", icon: LayoutDashboard, href: "/dashboard/overview" },
     { label: "Appointments", icon: CalendarClock, href: "/dashboard/appointments" },
+    { label: "Booking reviews", icon: ClipboardCheck, href: "/dashboard/booking-reviews" },
     { label: "Billing", icon: Receipt, href: "/dashboard/billing" },
     { label: "Equipment", icon: Wrench, href: "/dashboard/equipment" },
     { label: "Inventory", icon: Boxes, href: "/dashboard/inventory" },
@@ -89,6 +93,7 @@ const NAV_BY_ROLE: Record<Role, { label: string; icon: React.ElementType; href?:
   ],
   reception: [
     { label: "Today's schedule", icon: CalendarClock, href: "/dashboard/schedule" },
+    { label: "Booking reviews", icon: ClipboardCheck, href: "/dashboard/booking-reviews" },
     { label: "Patients", icon: Users, href: "/dashboard/patients" },
   ],
 };
@@ -362,8 +367,20 @@ function useMyNotifications(userId: string) {
     setNotifications((data ?? []) as Notification[]);
   }, [userId]);
 
+  // Notifications are written by the database, so re-read them after the app
+  // does something (see NOTIFICATIONS_REFRESH_EVENT), when the tab regains
+  // focus, and periodically for ones caused by other users.
   useEffect(() => {
     load();
+    const refresh = () => load();
+    window.addEventListener(NOTIFICATIONS_REFRESH_EVENT, refresh);
+    window.addEventListener("focus", refresh);
+    const timer = setInterval(refresh, 30_000);
+    return () => {
+      window.removeEventListener(NOTIFICATIONS_REFRESH_EVENT, refresh);
+      window.removeEventListener("focus", refresh);
+      clearInterval(timer);
+    };
   }, [load]);
 
   const markRead = useCallback(async (id: string) => {

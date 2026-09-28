@@ -12,11 +12,16 @@
  */
 export type NotifyEventType =
   | "appointment_booked"
+  | "appointment_reserved"
+  | "appointment_confirmed"
+  | "appointment_declined"
   | "appointment_cancelled"
   | "appointment_rescheduled"
   | "payment_received"
   | "insurance_claim_resolved"
   | "report_ready";
+
+export const NOTIFICATIONS_REFRESH_EVENT = "notifications:refresh";
 
 export function notifyPatient(
   userId: string,
@@ -25,6 +30,9 @@ export function notifyPatient(
   emailHtml: string,
   appointmentId: string
 ): void {
+  // The in-app notification for this action was already written by the
+  // database; tell the bell to re-read it.
+  window.dispatchEvent(new Event(NOTIFICATIONS_REFRESH_EVENT));
   fetch("/api/notifications/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

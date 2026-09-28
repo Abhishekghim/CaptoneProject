@@ -7,6 +7,7 @@ import { LOCATIONS, TIME_SLOTS } from "@/frontend/lib/constants";
 import { createClient } from "@/frontend/lib/supabase/client";
 import { notifyPatient } from "@/frontend/lib/notify";
 import type { Appointment } from "@/shared/types";
+import { bookingReviewLabel } from "@/shared/bookingReview";
 import { DatePickerField } from "@/frontend/components/shared/Calendar";
 import { StatusChip } from "@/frontend/components/shared/ui";
 
@@ -25,6 +26,7 @@ export default function AppointmentHistoryRow({
   const [slot, setSlot] = useState(a.time_slot);
   const [location, setLocation] = useState(a.location);
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const reviewLabel = bookingReviewLabel(a);
 
   // No client-side "taken slots" hint here: appts_patient_read_own RLS
   // scopes a patient's appointment reads to their own rows only (patient_id
@@ -94,12 +96,17 @@ export default function AppointmentHistoryRow({
               <> · <Paperclip size={12} className="inline" aria-hidden /> referral attached</>
             )}
           </p>
-          {/* Reception hasn't confirmed this booking yet — see
-              backend/database/033_booking_review_gate.sql and
-              ReceptionDashboard.tsx's matching "Unconfirmed" badge. */}
-          {!a.confirmed && a.status === "scheduled" && (
-            <p className="mt-1 inline-block rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-              Pending reception review
+          {reviewLabel && (
+            <p
+              className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                reviewLabel.tone === "pending"
+                  ? "bg-amber-50 text-amber-700"
+                  : reviewLabel.tone === "declined"
+                    ? "bg-rose-50 text-rose-700"
+                    : "bg-emerald-50 text-emerald-700"
+              }`}
+            >
+              {reviewLabel.text}
             </p>
           )}
         </div>

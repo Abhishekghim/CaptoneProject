@@ -15,7 +15,7 @@
 # typescript
 *.tsbuildinfo
 
-# claude code — personal/local settings only
+# personal/local editor settings only
 .claude/settings.local.json
 
 # misc

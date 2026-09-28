@@ -25,6 +25,8 @@ type Part = { name: AnatomyNode; isOrgan: boolean; material: THREE.MeshStandardM
 type Framing = { center: THREE.Vector3; distance: number };
 
 const HEADER_PX = 64;
+// Bottom of the section heading on narrow screens, where it sits above the model.
+const MOBILE_HEADING_BOTTOM_PX = 210;
 
 /**
  * The part of the screen the model may occupy, as fractions of the viewport:
@@ -37,7 +39,8 @@ function freeRegion(width: number, height: number) {
     return { cx: 0.64, cy: (top + 1) / 2, fx: 0.4, fy: (1 - top) * 0.9 };
   }
   const bottom = 0.56;
-  return { cx: 0.5, cy: (top + bottom) / 2, fx: 0.92, fy: (bottom - top) * 0.92 };
+  const mobileTop = Math.min(0.3, MOBILE_HEADING_BOTTOM_PX / height);
+  return { cx: 0.5, cy: (mobileTop + bottom) / 2, fx: 0.92, fy: (bottom - mobileTop) * 0.92 };
 }
 
 function targetOpacity(part: Part, chapter: AnatomyChapter, highlighted: boolean) {

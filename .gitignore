@@ -16,7 +16,7 @@
 *.tsbuildinfo
 
 # personal/local editor settings only
-.claude/settings.local.json
+.claude/
 
 # misc
 .DS_Store
